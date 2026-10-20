@@ -1,0 +1,61 @@
+/* Certificate workspace: edit details directly on the certificate (admin only). */
+.vp-admin {
+    .cert-workspace { display: flex; flex-direction: column; gap: 14px; }
+
+    .cert-toolbar {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap;
+        max-width: 1040px; width: 100%; margin: 0 auto;
+    }
+    .cert-tip { font-size: 13px; color: #4a5568; font-weight: 600; }
+    .cert-tip i { color: #b8960c; margin-right: 4px; }
+    .cert-name-controls { display: flex; gap: 18px; flex-wrap: wrap; }
+    .cert-name-controls label {
+        display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700;
+        color: #68717a; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .cert-name-controls input[type="range"] { width: 120px; accent-color: #b8960c; }
+
+    .cert-stage {
+        position: relative; width: 100%; max-width: min(1040px, calc((90vh - 200px) * 1.5)); margin: 0 auto;
+        border-radius: 10px; background: #ecebe4; box-shadow: 0 6px 22px rgba(30, 50, 80, 0.16);
+    }
+    .cert-stage iframe { display: block; width: 100%; aspect-ratio: 3 / 2; border: 0; border-radius: 10px; }
+    .cert-overlays { position: absolute; inset: 0; pointer-events: none; }
+
+    /* Field overlays: invisible text at rest (the certificate shows through), clear editor when focused. */
+    .cert-field {
+        position: absolute; pointer-events: auto; margin: 0; padding: 0 6px;
+        border: 1px dashed rgba(184, 150, 12, 0.5); border-radius: 4px;
+        background: transparent; color: transparent; caret-color: #172d4b;
+        font-family: inherit; font-size: 14px; text-align: center; cursor: text;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .cert-field::placeholder { color: transparent; }
+    .cert-field:hover { background: rgba(244, 201, 40, 0.14); border-color: #b8960c; }
+    .cert-field:focus, .cert-field.focused {
+        z-index: 2; color: #14110a; background: #fffef6; border: 2px solid #b8960c; outline: none;
+        font-size: 16px; box-shadow: 0 6px 18px rgba(20, 17, 10, 0.22);
+    }
+    .cert-field:focus::placeholder { color: #a3955d; }
+    .cert-field.date::-webkit-calendar-picker-indicator { opacity: 0; }
+    .cert-field.date:focus::-webkit-calendar-picker-indicator { opacity: 1; }
+    .cert-field.date:not(:focus)::-webkit-datetime-edit { color: transparent; }
+
+    /* Off-screen clean document used only for printing / Save as PDF. */
+    .cert-print-frame { position: fixed; left: -10000px; top: 0; width: 1123px; height: 749px; border: 0; }
+
+    .cert-footer { align-items: center; max-width: 1040px; width: 100%; margin: 6px auto 0; }
+    .cert-status { margin-right: auto; font-size: 13px; font-weight: 600; color: #066b33; }
+    .cert-status.dirty { color: #8a5a00; }
+
+    @media (max-width: 640px) {
+        .modal-content.wide { padding: 18px 14px; }
+        .cert-name-controls input[type="range"] { width: 96px; }
+        .cert-footer .btn { flex: 1 1 auto; }
+        .cert-status { width: 100%; }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vp-admin .cert-field { transition: none; }
+}

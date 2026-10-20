@@ -1,0 +1,71 @@
+# Credentials are configured in Vercel, never uploaded with source.
+.env*
+.npmrc
+.aws
+.ssh
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Private database exports and backups; retain versioned migrations.
+*.sql
+*.sql.gz
+*.dump
+*.backup
+*.bak
+!/prisma/migrations/**/*.sql
+/backups
+/exports
+
+# Private legacy receipts and uploads are not application assets.
+/uploads
+/receipts
+/public/uploads
+/public/receipts
+
+# Superseded PHP/HTML application and bundled legacy Bootstrap files.
+*.php
+*.phtml
+*.phar
+/*.html
+/app.js
+/config
+/includes
+/css
+/js
+
+# Local dependencies, build outputs, editor state and test artifacts.
+/node_modules
+/.next
+/.git
+/.vercel
+/.vscode
+/.idea
+/.vs
+/.codex
+/.agents
+/out
+/build
+/dist
+/coverage
+/test-results
+/playwright-report
+/tests
+/scripts
+/tmp
+/temp
+/artifacts
+*.tsbuildinfo
+*.log
+*.swp
+*.swo
+*.tmp
+*.temp
+*.orig
+*.rej
+.DS_Store
+Thumbs.db
+
+# Keep app/, components/, lib/, public/, Prisma schema/migrations and package
+# manifests. postinstall/build regenerate lib/generated/prisma on Vercel.

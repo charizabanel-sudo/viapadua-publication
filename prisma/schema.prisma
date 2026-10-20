@@ -1,0 +1,216 @@
+// Via Padua Parish — Neon PostgreSQL schema.
+// Legacy tables (users, bookings, blocked_dates, admin_events, chat_messages) keep
+// the MySQL names and IDs so historical data can be imported without loss.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  completed
+  cancelled
+}
+
+enum PaymentMethod {
+  gcash
+  church
+}
+
+enum PaymentStatus {
+  unpaid
+  paid
+}
+
+enum BookingSource {
+  web
+  legacy
+}
+
+enum AdminEventType {
+  mass
+  sacrament
+  meeting
+  holiday
+  other
+}
+
+enum ChatSender {
+  user
+  admin
+}
+
+/// Legacy parishioner accounts. Preserved for history only; there is no public login.
+model User {
+  id        Int       @id @default(autoincrement())
+  fullname  String    @db.VarChar(100)
+  email     String    @unique @db.VarChar(255)
+  phone     String?   @db.VarChar(30)
+  dob       DateTime? @db.Date
+  address   String?   @db.VarChar(255)
+  avatar    String?
+  /// Legacy PHP password_hash() value. Never used for authentication.
+  password  String    @db.VarChar(255)
+  role      UserRole  @default(user)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  bookings Booking[]
+  admin    Admin?
+
+  @@map("users")
+}
+
+model Booking {
+  id                Int            @id @default(autoincrement())
+  reference         String         @unique @db.VarChar(24)
+  /// Legacy account link. RESTRICT (not CASCADE): deleting a user can never delete bookings.
+  userId            Int?           @map("user_id")
+  requesterName     String         @map("requester_name") @db.VarChar(100)
+  requesterEmail    String         @map("requester_email") @db.VarChar(255)
+  requesterPhone    String?        @map("requester_phone") @db.VarChar(30)
+  service           String         @db.VarChar(100)
+  bookingDate       DateTime       @map("booking_date") @db.Date
+  bookingTime       String?        @map("booking_time") @db.VarChar(20)
+  location          String?        @default("Main Chapel") @db.VarChar(100)
+  status            BookingStatus  @default(pending)
+  fee               Decimal?       @db.Decimal(10, 2)
+  paymentMethod     PaymentMethod? @map("payment_method")
+  paymentStatus     PaymentStatus  @default(unpaid) @map("payment_status")
+  gcashName         String?        @map("gcash_name") @db.VarChar(100)
+  gcashNumber       String?        @map("gcash_number") @db.VarChar(30)
+  gcashReference    String?        @map("gcash_reference") @db.VarChar(100)
+  /// Legacy base64 receipt images only. New uploads await object-storage migration.
+  paymentProof      String?        @map("payment_proof")
+  notes             String?
+  details           Json?
+  certificate       Json?
+  source            BookingSource  @default(web)
+  statusChangedAt   DateTime?      @map("status_changed_at") @db.Timestamptz(6)
+  statusChangedById Int?           @map("status_changed_by_id")
+  /// Set when an admin manually verifies payment (Records → Mark as Paid).
+  paidAt            DateTime?      @map("paid_at") @db.Timestamptz(6)
+  paidById          Int?           @map("paid_by_id")
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user            User?                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  statusChangedBy Admin?               @relation("BookingStatusChangedBy", fields: [statusChangedById], references: [id], onDelete: SetNull)
+  paidBy          Admin?               @relation("BookingPaidBy", fields: [paidById], references: [id], onDelete: SetNull)
+  statusEvents    BookingStatusEvent[]
+
+  @@index([bookingDate, status])
+  @@index([status, createdAt])
+  @@index([requesterEmail])
+  @@index([userId])
+  @@map("bookings")
+}
+
+model BookingStatusEvent {
+  id         Int           @id @default(autoincrement())
+  bookingId  Int           @map("booking_id")
+  fromStatus BookingStatus @map("from_status")
+  toStatus   BookingStatus @map("to_status")
+  adminId    Int?          @map("admin_id")
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  admin   Admin?  @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([bookingId])
+  @@map("booking_status_events")
+}
+
+model BlockedDate {
+  id   Int      @id @default(autoincrement())
+  date DateTime @unique @db.Date
+
+  @@map("blocked_dates")
+}
+
+/// Legacy calendar events (preserved; the events module is not migrated yet).
+model AdminEvent {
+  id          Int            @id @default(autoincrement())
+  title       String         @db.VarChar(200)
+  eventDate   DateTime       @map("event_date") @db.Date
+  eventTime   String?        @map("event_time") @db.VarChar(50)
+  type        AdminEventType @default(other)
+  location    String?        @db.VarChar(200)
+  description String?
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([eventDate])
+  @@map("admin_events")
+}
+
+/// Legacy chat history (preserved; the chat module is not migrated yet).
+model ChatMessage {
+  id        Int        @id @default(autoincrement())
+  userId    Int        @map("user_id")
+  userEmail String     @map("user_email") @db.VarChar(255)
+  sender    ChatSender
+  text      String
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  adminSeen Boolean    @default(false) @map("admin_seen")
+
+  @@index([userEmail, createdAt])
+  @@map("chat_messages")
+}
+
+/// Admin-only accounts, created with `npm run admin:create` or the legacy import.
+model Admin {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique @db.VarChar(255)
+  name         String    @db.VarChar(100)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  isActive     Boolean   @default(true) @map("is_active")
+  legacyUserId Int?      @unique @map("legacy_user_id")
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  legacyUser      User?                @relation(fields: [legacyUserId], references: [id], onDelete: SetNull)
+  sessions        AdminSession[]
+  changedBookings Booking[]            @relation("BookingStatusChangedBy")
+  paidBookings    Booking[]            @relation("BookingPaidBy")
+  statusEvents    BookingStatusEvent[]
+
+  @@map("admins")
+}
+
+model AdminSession {
+  /// SHA-256 of the random session token; the raw token only lives in the cookie.
+  id        String   @id @db.VarChar(64)
+  adminId   Int      @map("admin_id")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  userAgent String?  @map("user_agent") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([expiresAt])
+  @@map("admin_sessions")
+}
+
+/// Sliding-window rate-limit events (admin login attempts, public booking submissions).
+model RateLimitEvent {
+  id        Int      @id @default(autoincrement())
+  /// Keyed HMAC of e.g. "login:email:x"; no raw IPs or emails are stored.
+  bucket    String   @db.VarChar(64)
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([bucket, createdAt])
+  @@map("rate_limit_events")
+}

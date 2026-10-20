@@ -1,0 +1,86 @@
+# dependencies
+node_modules/
+
+# next.js
+/.next/
+/out/
+/build/
+/dist/
+/.turbo/
+next-env.d.ts
+*.tsbuildinfo
+
+# generated Prisma client (rebuilt by `prisma generate` on install/build)
+/lib/generated/
+
+# env (only the example is committed)
+.env*
+!.env.example
+
+# database exports / backups (contain private data) — migrations are allowed
+*.sql
+*.sql.gz
+*.dump
+*.backup
+*.bak
+!/prisma/migrations/**/*.sql
+/backups/
+/exports/
+
+# legacy uploads (GCash receipts and other private files)
+/uploads/
+/receipts/
+/public/uploads/
+/public/receipts/
+/payment-proofs/
+
+# credentials and private local configuration
+.npmrc
+.aws/
+.ssh/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# superseded legacy application (preserved in the original local repository)
+*.php
+*.phtml
+*.phar
+/*.html
+/app.js
+/config/
+/includes/
+/css/
+/js/
+
+# editor state and local tooling
+/.vscode/
+/.idea/
+/.vs/
+/.codex/
+/.agents/
+
+# logs
+npm-debug.log*
+*.log
+*.swp
+*.swo
+*.tmp
+*.temp
+*.orig
+*.rej
+
+# OS
+.DS_Store
+Thumbs.db
+
+# local deployment linkage and verification artifacts
+/.vercel/
+/tmp/
+/temp/
+/output/
+/artifacts/
+/coverage/
+/test-results/
+/playwright-report/
