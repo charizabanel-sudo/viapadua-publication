@@ -9,7 +9,7 @@ import { logoutAction } from "./actions";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Admin — Via Padua Parish",
+  title: "Via Padua Parish Admin",
   robots: { index: false, follow: false },
 };
 

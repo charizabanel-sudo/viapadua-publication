@@ -20,28 +20,28 @@ export const SERVICES: Service[] = [
     description: "Welcome new members into the Church through the sacrament of baptism.",
     icon: "fa-water",
     color: "blue",
-    href: "/services#baptism",
+    href: "/?services=1&service=baptism&step=form",
   },
   {
     title: "Wedding",
     description: "Celebrate the sacrament of matrimony in the presence of God.",
     icon: "fa-heart",
     color: "pink",
-    href: "/services#wedding",
+    href: "/?services=1&service=wedding&step=form",
   },
   {
     title: "Mass Intention",
     description: "Offer a Mass for your intentions or loved ones.",
     icon: "fa-praying-hands",
     color: "green",
-    href: "/services#mass-intention",
+    href: "/?services=1&service=mass-intention&step=form",
   },
   {
     title: "Certificates",
     description: "Baptismal, Marriage, and Confirmation certificates.",
     icon: "fa-scroll",
     color: "yellow",
-    href: "/services",
+    href: "/?services=1",
   },
 ];
 
@@ -57,7 +57,7 @@ export type ContactItem = { title: string; icon: string; lines: string[] };
 
 export const CONTACTS: ContactItem[] = [
   { title: "Address", icon: "fa-map-marker-alt", lines: ["Ponso, Polangui", "Albay, Philippines"] },
-  { title: "Phone", icon: "fa-phone-alt", lines: ["(555) 123-4567", "Office Hours: Mon-Fri 9AM-5PM"] },
+  { title: "Phone", icon: "fa-phone-alt", lines: ["(555) 123-4567", "Office Hours: Monday to Friday, 9AM to 5PM"] },
   {
     title: "Email",
     icon: "fa-envelope",

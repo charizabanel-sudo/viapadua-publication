@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AdminLoginMenu from "@/components/home/AdminLoginMenu";
 import NavbarShell from "@/components/home/NavbarShell";
+import { ServicesLink } from "@/components/public/PublicOverlayProvider";
 import { SITE } from "@/lib/site";
 
 export default function SiteHeader() {
@@ -17,9 +18,9 @@ export default function SiteHeader() {
           </div>
         </Link>
         <nav className="nav-buttons" aria-label="Main">
-          <Link href="/services" className="nav-btn btn-signup">
+          <ServicesLink className="nav-btn btn-signup">
             <i className="fas fa-file-alt" aria-hidden="true" /> Services
-          </Link>
+          </ServicesLink>
           <AdminLoginMenu />
         </nav>
       </div>

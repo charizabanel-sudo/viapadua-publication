@@ -1,7 +1,7 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 
-export const metadata = { title: "Page not available — Via Padua Parish" };
+export const metadata = { title: "Page not available at Via Padua Parish" };
 
 export default function NotFound() {
   return (

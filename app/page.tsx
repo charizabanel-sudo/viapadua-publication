@@ -2,7 +2,8 @@ import SiteHeader from "@/components/SiteHeader";
 import DeveloperPhoto from "@/components/DeveloperPhoto";
 import HeroBackground from "@/components/home/HeroBackground";
 import { AboutProvider, AboutSection, LearnMoreButton } from "@/components/AboutDisclosure";
-import Link from "next/link";
+import { ServicesLink } from "@/components/public/PublicOverlayProvider";
+import ServicesBooking from "@/components/services/ServicesBooking";
 import { CONTACTS, DEVELOPERS, SERVICES, SITE } from "@/lib/site";
 
 export default function HomePage() {
@@ -25,9 +26,9 @@ export default function HomePage() {
               </div>
               <p>Building a community of faith, hope, and love. Join us in worship and fellowship.</p>
               <div className="hero-buttons">
-                <Link href="/services" className="book-service">
+                <ServicesLink className="book-service">
                   Book a Service
-                </Link>
+                </ServicesLink>
                 <LearnMoreButton />
               </div>
             </div>
@@ -84,13 +85,13 @@ export default function HomePage() {
                 </div>
                 <h3>{service.title}</h3>
                 <p>{service.description}</p>
-                <Link
-                  href={service.href}
+                <ServicesLink
+                  service={new URL(service.href, "https://viapadua.local").searchParams.get("service") ?? undefined}
                   className="book-now"
                   aria-label={`Book ${service.title}`}
                 >
                   Book Now
-                </Link>
+                </ServicesLink>
               </div>
             ))}
           </div>
@@ -122,6 +123,7 @@ export default function HomePage() {
           </div>
         </section>
       </main>
+      <ServicesBooking gcashPayee={{ number: process.env.PARISH_GCASH_NUMBER?.trim() || null, name: process.env.PARISH_GCASH_NAME?.trim() || "Church of San Antonio de Padua" }} />
     </div>
   );
 }

@@ -57,9 +57,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
       </header>
 
       <div className="print-only print-heading">
-        <strong>Via Padua Parish — Booking Report</strong>
+        <strong>Via Padua Parish Booking Report</strong>
         <span>
-          {formatDateLong(filters.from)} – {formatDateLong(filters.to)} · {filters.service === "all" ? "All services" : filters.service} · Generated{" "}
+          {formatDateLong(filters.from)} to {formatDateLong(filters.to)} · {filters.service === "all" ? "All services" : filters.service} · Generated{" "}
           {new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" })}
         </span>
       </div>
@@ -197,7 +197,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
                       <strong>{g.name}</strong>
                     </td>
                     <td>{g.email}</td>
-                    <td className="muted">{g.phone || "—"}</td>
+                    <td className="muted">{g.phone || "Not provided"}</td>
                     <td className="num">{g.bookings}</td>
                     <td className="num">{g.active}</td>
                     <td className="num">{g.completed}</td>

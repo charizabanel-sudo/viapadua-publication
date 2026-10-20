@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition, type FormEvent, type MouseEvent, type Ref } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent, type Ref } from "react";
+import { PublicDialog, usePublicOverlay } from "@/components/public/PublicOverlayProvider";
 import { submitBooking } from "@/app/services/actions";
 import type { CreatedBooking } from "@/lib/booking/create";
 import {
@@ -24,7 +25,7 @@ import {
 } from "@/lib/booking/schedule";
 
 type FieldErrors = Record<string, string>;
-type Step = "closed" | "blessing" | "form" | "gcash" | "success";
+type Step = "catalog" | "blessing" | "form" | "gcash" | "success";
 type Payment = "" | "gcash" | "church";
 
 const GCASH_FIELDS = ["gcashAccountName", "gcashNumber", "gcashRefNumber"];
@@ -33,8 +34,8 @@ type Props = { gcashPayee: { number: string | null; name: string } };
 
 export default function ServicesBooking({ gcashPayee }: Props) {
   const [openReqs, setOpenReqs] = useState<ReadonlySet<string>>(new Set());
-  const [step, setStep] = useState<Step>("closed");
-  const [service, setService] = useState<BookableService | null>(null);
+  const { active, servicesState, navigateServices, requestClose, requestOpen, registerGuard } = usePublicOverlay();
+  const service: BookableService | null = getBookableService(servicesState.service) ?? null;
   const [blessingChoice, setBlessingChoice] = useState("");
   const [blessingError, setBlessingError] = useState(false);
   const [payment, setPayment] = useState<Payment>("");
@@ -42,26 +43,41 @@ export default function ServicesBooking({ gcashPayee }: Props) {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedBooking | null>(null);
-  const [formKey, setFormKey] = useState(0);
+  const [dirty, setDirty] = useState(false);
+  const [formVersion, setFormVersion] = useState(0);
   const [copied, setCopied] = useState(false);
   const [pending, startTransition] = useTransition();
   const bookingFormRef = useRef<HTMLFormElement>(null);
   const gcashFirstFieldRef = useRef<HTMLInputElement>(null);
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const rawStep = servicesState.step;
+  let step: Step = "catalog";
+  if (rawStep === "blessing") step = "blessing";
+  else if (rawStep === "success" && created) step = "success";
+  else if (service && (rawStep === "form" || rawStep === "gcash")) step = rawStep === "gcash" && payment === "gcash" ? "gcash" : "form";
+  const formKey = `${service?.code ?? "booking"}-${formVersion}`;
+  function setStep(next: Step) { navigateServices({ step: next }); }
 
-  // Escape closes the active dialog (legacy behaviour), except while submitting.
   useEffect(() => {
-    if (step === "closed") return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !pending) setStep("closed");
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [step, pending]);
+    return registerGuard("services", () => !pending && (!dirty || window.confirm("You have unsent booking details. Continue? Details stay available while switching views, but choosing another service or leaving or reloading this page discards them.")));
+  }, [registerGuard, pending, dirty]);
+
+  useEffect(() => {
+    if (!dirty || created) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [dirty, created]);
 
   // Move focus into the GCash step when it opens (its form stays mounted to keep entered values).
   useEffect(() => {
-    if (step === "gcash") gcashFirstFieldRef.current?.focus();
-  }, [step]);
+    if (active !== "services") return;
+    const frame = requestAnimationFrame(() => {
+      if (step === "gcash") gcashFirstFieldRef.current?.focus();
+      else stepHeadingRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [step, active]);
 
   function toggleRequirements(slug: string) {
     setOpenReqs((prev) => {
@@ -75,29 +91,27 @@ export default function ServicesBooking({ gcashPayee }: Props) {
   function openBooking(code: string) {
     const selected = getBookableService(code);
     if (!selected) return;
-    setService(selected);
+    if (code === service?.code && !created) { setStep("form"); return; }
+    if (dirty && !window.confirm("Choose another service and discard the current booking details?")) return;
     setPayment("");
     setDate("");
     setErrors({});
     setFormError(null);
     setCreated(null);
     setCopied(false);
-    setFormKey((k) => k + 1);
-    setStep("form");
+    setFormVersion((version) => version + 1);
+    setDirty(false);
+    navigateServices({ service: selected.code, step: "form" });
   }
 
   function openBlessing() {
     setBlessingChoice("");
     setBlessingError(false);
-    setStep("blessing");
+    navigateServices({ service: service?.code ?? "blessing", step: "blessing" });
   }
 
   function close() {
-    if (!pending) setStep("closed");
-  }
-
-  function onOverlayMouseDown(e: MouseEvent<HTMLDivElement>) {
-    if (e.target === e.currentTarget) close();
+    if (!pending) requestClose();
   }
 
   function clearError(name: string) {
@@ -116,6 +130,7 @@ export default function ServicesBooking({ gcashPayee }: Props) {
         const result = await submitBooking(formData);
         if (result.status === "success") {
           setCreated(result.booking);
+          setDirty(false);
           setStep("success");
           return;
         }
@@ -169,11 +184,25 @@ export default function ServicesBooking({ gcashPayee }: Props) {
     }
   }
 
-  const today = step === "closed" ? "" : todayInParish();
+  const today = todayInParish();
   const dateBlocked = date !== "" && isBlockedWeekday(date);
 
   return (
-    <>
+    <PublicDialog kind="services" labelledBy="services-workspace-title" className="vp-services services-workspace">
+      <header className="services-workspace-head">
+        <div>
+          <h2 id="services-workspace-title">Parish Services</h2>
+          <p>View requirements and book as a guest. No account is needed.</p>
+        </div>
+        <button type="button" className="workspace-close" onClick={close} disabled={pending} aria-label="Close services"><i className="fas fa-times" aria-hidden="true" /></button>
+      </header>
+      <div className="services-workspace-body">
+      <div className="services-workspace-nav">
+        {step !== "catalog" ? <button type="button" disabled={pending} onClick={() => setStep("catalog")}><i className="fas fa-arrow-left" aria-hidden="true" /> All services</button> : <span>Choose a parish service</span>}
+        <button type="button" disabled={pending} onClick={() => requestOpen("chat")}><i className="fas fa-comment" aria-hidden="true" /> Message the parish</button>
+      </div>
+      <section hidden={step !== "catalog"} aria-label="Available services">
+      <div className="blocked-notice"><i className="fas fa-calendar-alt" aria-hidden="true" /><p>Bookings are unavailable on Sundays and Tuesdays. Please choose another day.</p></div>
       <div className="cards-grid">
         {SERVICE_CARDS.map((card) => {
           const reqOpen = openReqs.has(card.slug);
@@ -183,9 +212,9 @@ export default function ServicesBooking({ gcashPayee }: Props) {
               <div className="card-icon-bg" aria-hidden="true">
                 <i className={`fas ${card.icon}`} />
               </div>
-              <h2 className="service-title">{card.title}</h2>
+              <h3 className="service-title">{card.title}</h3>
               <p className="service-subtitle">{card.subtitle}</p>
-              <h3 className="section-label">About {card.title}</h3>
+              <h4 className="section-label">About {card.title}</h4>
               <p className="description">{card.about}</p>
               <button
                 type="button"
@@ -234,22 +263,18 @@ export default function ServicesBooking({ gcashPayee }: Props) {
               {card.certificate && (
                 <p className="awaiting-note">
                   <i className="fas fa-clock" aria-hidden="true" /> Online {card.certificate.name.toLowerCase()} requests (
-                  {formatPeso(card.certificate.fee)}) are awaiting migration — please request at the parish office.
+                  {formatPeso(card.certificate.fee)}) are awaiting migration. Please request at the parish office.
                 </p>
               )}
             </div>
           );
         })}
       </div>
+      </section>
 
       {/* BLESSING CHOOSER */}
-      {step === "blessing" && (
-        <div className="modal-overlay show" onMouseDown={onOverlayMouseDown}>
-          <div className="modal-box" style={{ width: 480 }} role="dialog" aria-modal="true" aria-labelledby="blessingTitle">
-            <button type="button" className="modal-close" onClick={close} aria-label="Close">
-              <i className="fas fa-times" aria-hidden="true" />
-            </button>
-            <h3 className="modal-title" id="blessingTitle">
+        <section hidden={step !== "blessing"} className="services-step" aria-labelledby="blessingTitle">
+            <h3 className="modal-title" id="blessingTitle" ref={step === "blessing" ? stepHeadingRef : undefined} tabIndex={-1}>
               Blessing Service
             </h3>
             <p className="modal-subtitle">Choose the type of blessing</p>
@@ -283,8 +308,8 @@ export default function ServicesBooking({ gcashPayee }: Props) {
               ))}
             </div>
             <div className="modal-actions">
-              <button type="button" className="btn btn-secondary" onClick={close}>
-                Cancel
+              <button type="button" className="btn btn-secondary" onClick={() => setStep("catalog")}>
+                All services
               </button>
               <button
                 type="button"
@@ -294,19 +319,13 @@ export default function ServicesBooking({ gcashPayee }: Props) {
                 Continue
               </button>
             </div>
-          </div>
-        </div>
-      )}
+        </section>
 
       {/* BOOKING FORM (kept mounted during the GCash step so its values are preserved) */}
-      {service && (step === "form" || step === "gcash") && (
-        <div className={`modal-overlay${step === "form" ? " show" : ""}`} onMouseDown={onOverlayMouseDown}>
-          <div className="modal-box" role="dialog" aria-modal="true" aria-labelledby="bookingModalTitle">
-            <button type="button" className="modal-close" onClick={close} aria-label="Close">
-              <i className="fas fa-times" aria-hidden="true" />
-            </button>
-            <h3 className="modal-title" id="bookingModalTitle">
-              Book {service.name} — {formatPeso(service.fee)}
+      {service && (
+        <section hidden={step !== "form"} className="services-step" aria-labelledby="bookingModalTitle">
+            <h3 className="modal-title" id="bookingModalTitle" ref={step === "form" ? stepHeadingRef : undefined} tabIndex={-1}>
+              Book {service.name} <span className="booking-fee">{formatPeso(service.fee)}</span>
             </h3>
             <p className="modal-subtitle">Please fill in the details below</p>
 
@@ -317,7 +336,7 @@ export default function ServicesBooking({ gcashPayee }: Props) {
               </div>
             )}
 
-            <form ref={bookingFormRef} key={formKey} onSubmit={onBookingSubmit}>
+            <form ref={bookingFormRef} key={formKey} onSubmit={onBookingSubmit} onInput={() => setDirty(true)} aria-busy={pending}>
               <input type="hidden" name="serviceCode" value={service.code} />
               <div className="hp-field" aria-hidden="true">
                 <label htmlFor="website">Website</label>
@@ -325,7 +344,7 @@ export default function ServicesBooking({ gcashPayee }: Props) {
               </div>
 
               <div className="form-row">
-                <TextInput name="bookFullName" label="Full Name" required autoComplete="name" errors={errors} onEdit={clearError} autoFocus />
+                <TextInput name="bookFullName" label="Full Name" required autoComplete="name" errors={errors} onEdit={clearError} />
                 <TextInput
                   name="bookContact"
                   label="Contact Number"
@@ -406,7 +425,7 @@ export default function ServicesBooking({ gcashPayee }: Props) {
                       </>
                     ) : (
                       <>
-                        <i className="fas fa-info-circle" aria-hidden="true" /> {formatTime12h(EARLIEST_TIME)} –{" "}
+                        <i className="fas fa-info-circle" aria-hidden="true" /> {formatTime12h(EARLIEST_TIME)} to{" "}
                         {formatTime12h(LATEST_TIME)}
                       </>
                     )}
@@ -452,6 +471,7 @@ export default function ServicesBooking({ gcashPayee }: Props) {
                   selected={payment === "gcash"}
                   onSelect={() => {
                     setPayment("gcash");
+                    setDirty(true);
                     clearError("payment_method");
                   }}
                   icon="fa-mobile-alt"
@@ -463,6 +483,7 @@ export default function ServicesBooking({ gcashPayee }: Props) {
                   selected={payment === "church"}
                   onSelect={() => {
                     setPayment("church");
+                    setDirty(true);
                     clearError("payment_method");
                   }}
                   icon="fa-church"
@@ -472,7 +493,7 @@ export default function ServicesBooking({ gcashPayee }: Props) {
                 />
               </div>
               {errors.payment_method && (
-                <div className="form-hint warn" style={{ marginTop: -12, marginBottom: 14 }}>
+                <div className="form-hint warn payment-error">
                   <i className="fas fa-exclamation-circle" aria-hidden="true" /> {errors.payment_method}
                 </div>
               )}
@@ -486,17 +507,12 @@ export default function ServicesBooking({ gcashPayee }: Props) {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </section>
       )}
 
       {/* GCASH STEP */}
-      {service && (step === "form" || step === "gcash") && (
-        <div className={`modal-overlay${step === "gcash" ? " show" : ""}`} onMouseDown={onOverlayMouseDown}>
-          <div className="modal-box" role="dialog" aria-modal="true" aria-labelledby="gcashTitle">
-            <button type="button" className="modal-close" onClick={close} aria-label="Close">
-              <i className="fas fa-times" aria-hidden="true" />
-            </button>
+      {service && (
+        <section hidden={step !== "gcash"} className="services-step" aria-labelledby="gcashTitle">
             <h3 className="modal-title" id="gcashTitle">
               GCash Payment
             </h3>
@@ -524,7 +540,7 @@ export default function ServicesBooking({ gcashPayee }: Props) {
               </div>
             )}
 
-            <form key={formKey} onSubmit={onGcashSubmit}>
+            <form key={formKey} onSubmit={onGcashSubmit} onInput={() => setDirty(true)} aria-busy={pending}>
               <TextInput
                 name="gcashAccountName"
                 label="GCash Account Name"
@@ -548,7 +564,7 @@ export default function ServicesBooking({ gcashPayee }: Props) {
                 <div className="upload-area disabled" aria-disabled="true">
                   <i className="fas fa-cloud-upload-alt" aria-hidden="true" />
                   <p>Receipt upload is awaiting migration</p>
-                  <p style={{ fontSize: 12, marginTop: 4 }}>Keep your GCash receipt — the parish may ask to see it.</p>
+                  <p style={{ fontSize: 12, marginTop: 4 }}>Keep your GCash receipt. The parish may ask to see it.</p>
                 </div>
               </div>
               <div className="modal-actions">
@@ -560,22 +576,17 @@ export default function ServicesBooking({ gcashPayee }: Props) {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </section>
       )}
 
       {/* SUCCESS */}
-      {step === "success" && created && (
-        <div className="modal-overlay show" onMouseDown={onOverlayMouseDown}>
-          <div className="modal-box" role="dialog" aria-modal="true" aria-labelledby="successTitle">
-            <button type="button" className="modal-close" onClick={close} aria-label="Close">
-              <i className="fas fa-times" aria-hidden="true" />
-            </button>
+      {created && (
+        <section hidden={step !== "success"} className="services-step" aria-labelledby="successTitle">
             <div className="success-view">
               <div className="success-icon" aria-hidden="true">
                 <i className="fas fa-check" />
               </div>
-              <h3 className="modal-title" id="successTitle">
+              <h3 className="modal-title" id="successTitle" ref={step === "success" ? stepHeadingRef : undefined} tabIndex={-1}>
                 Booking Request Submitted
               </h3>
               <p className="modal-subtitle">The parish office will review your request and contact you.</p>
@@ -611,10 +622,10 @@ export default function ServicesBooking({ gcashPayee }: Props) {
                 Done
               </button>
             </div>
-          </div>
-        </div>
+        </section>
       )}
-    </>
+      </div>
+    </PublicDialog>
   );
 }
 
@@ -690,7 +701,7 @@ function ServiceInput({
       </label>
       {field.type === "select" ? (
         <select {...common} defaultValue="">
-          <option value="">-- Select --</option>
+          <option value="">Please select</option>
           {field.options?.map((opt) => (
             <option key={opt} value={opt}>
               {opt}

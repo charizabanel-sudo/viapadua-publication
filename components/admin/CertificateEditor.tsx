@@ -51,7 +51,7 @@ export default function CertificateEditor({ bookingId, reference, booking, saved
       >
         <i className="fas fa-scroll" aria-hidden="true" /> {label}
       </button>
-      <Dialog open={open} title={`Certificate — ${booking.service} (${reference})`} onClose={requestClose} wide>
+      <Dialog open={open} title={`Certificate for ${booking.service} (${reference})`} onClose={requestClose} wide>
         <Workspace
           key={formKey}
           bookingId={bookingId}

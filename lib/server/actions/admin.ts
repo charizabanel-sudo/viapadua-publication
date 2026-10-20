@@ -82,7 +82,7 @@ export async function toggleBlockedDateAction(formData: FormData): Promise<Actio
       ok: true,
       message:
         result.activeBookings > 0
-          ? `${label} blocked for new bookings. ${result.activeBookings} existing booking(s) on this date were kept — review them in Bookings.`
+          ? `${label} blocked for new bookings. ${result.activeBookings} existing booking(s) on this date were kept. Review them in Bookings.`
           : `${label} blocked for new bookings.`,
     };
   } catch (error) {

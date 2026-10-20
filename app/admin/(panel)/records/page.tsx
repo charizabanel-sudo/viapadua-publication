@@ -140,7 +140,7 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
                       <div>
                         <dt>Fee</dt>
                         <dd>
-                          {r.fee !== null ? formatPeso(Number(r.fee)) : "—"} · {r.paymentMethod === "gcash" ? "GCash" : r.paymentMethod === "church" ? "Pay at church" : "—"}
+                          {r.fee !== null ? formatPeso(Number(r.fee)) : "Fee not specified"} · {r.paymentMethod === "gcash" ? "GCash" : r.paymentMethod === "church" ? "Pay at church" : "Payment method not specified"}
                         </dd>
                       </div>
                       {cert && (

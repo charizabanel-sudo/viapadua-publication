@@ -126,6 +126,14 @@
         .event-card { grid-template-columns: 60px minmax(0, 1fr); }
         .event-side { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center; }
     }
+    @media (max-width: 640px) {
+        .agenda-list .list-row { flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+        .agenda-list .agenda-date { width: auto; flex: 0 0 100%; }
+        .agenda-list .grow { flex: 1 1 100%; }
+        .agenda-list strong { white-space: normal; overflow-wrap: anywhere; }
+        .agenda-list .meta { overflow-wrap: anywhere; }
+        .agenda-list .icon-btn { flex: 0 0 30px; }
+    }
     @media (max-width: 520px) {
         .event-actions { flex-wrap: wrap; justify-content: flex-end; }
         .agenda-date { width: 84px; }

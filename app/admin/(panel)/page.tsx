@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getDashboardData } from "@/lib/admin/dashboard";
 import { EVENT_TYPE_LABEL } from "@/lib/admin/events";
-import { formatDateLong, formatTime12h, parseIsoDate } from "@/lib/booking/schedule";
+import { formatDateLong, formatTime12h, hasClockTime, parseIsoDate } from "@/lib/booking/schedule";
 import { requireAdmin } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
 import type { AdminEventType } from "@/lib/generated/prisma/enums";
@@ -117,7 +117,7 @@ export default async function DashboardPage() {
                         <td>{p.service}</td>
                         <td>
                           {formatDateLong(p.date)}
-                          {p.time ? ` · ${formatTime12h(p.time)}` : ""}
+                          {hasClockTime(p.time) ? ` · ${formatTime12h(p.time)}` : ""}
                         </td>
                         <td>
                           <span className={`waiting${p.waitingDays >= 3 ? " late" : ""}`}>

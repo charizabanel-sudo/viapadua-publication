@@ -3,7 +3,7 @@ import ActionButton from "@/components/admin/ActionButton";
 import EventEditor from "@/components/admin/EventEditor";
 import { getMonthData, normalizeMonth, shiftMonth } from "@/lib/admin/calendar";
 import { EVENT_TYPE_LABEL, type EventRow } from "@/lib/admin/events";
-import { formatDateLong, formatTime12h, isBlockedWeekday, todayInParish } from "@/lib/booking/schedule";
+import { formatDateLong, formatTime12h, hasClockTime, isBlockedWeekday, todayInParish } from "@/lib/booking/schedule";
 import { deleteEventAction, toggleBlockedDateAction } from "@/lib/server/actions/admin";
 import { requireAdmin } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
@@ -131,7 +131,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
                       </EventEditor>
                     ) : (
                       <Link key={`b${c.b.id}`} className={`cal-chip booking ${c.b.status}`} href={`/admin/bookings?view=${c.b.id}`} title={`${c.b.service} · ${c.b.status}`}>
-                        {c.b.time ? `${formatTime12h(c.b.time)} ` : ""}
+                        {hasClockTime(c.b.time) ? `${formatTime12h(c.b.time)} ` : ""}
                         {c.b.service}
                       </Link>
                     ),
@@ -174,7 +174,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
               <p>No events or bookings this month.</p>
             </div>
           ) : (
-            <ul className="list">
+            <ul className="list agenda-list">
               {agenda.map((item) =>
                 item.kind === "event" ? (
                   <li className="list-row" key={`e${item.event.id}`}>
@@ -182,7 +182,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
                     <div className="grow">
                       <strong>{item.event.title}</strong>
                       <span className="meta">
-                        {[item.event.time, item.event.location].filter(Boolean).join(" · ") || "—"}
+                        {[item.event.time, item.event.location].filter(Boolean).join(" · ") || "Details not specified"}
                       </span>
                     </div>
                     <span className={`badge badge-type ${item.event.type}`}>{EVENT_TYPE_LABEL[item.event.type]}</span>
@@ -206,7 +206,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
                     <div className="grow">
                       <strong>{item.booking.service}</strong>
                       <span className="meta">
-                        {item.booking.time ? `${formatTime12h(item.booking.time)} · ` : ""}
+                        {hasClockTime(item.booking.time) ? `${formatTime12h(item.booking.time)} · ` : ""}
                         {item.booking.reference}
                       </span>
                     </div>

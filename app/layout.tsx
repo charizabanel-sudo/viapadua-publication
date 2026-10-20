@@ -10,13 +10,17 @@ import "./styles/admin-modules.css";
 import "./styles/certificate-editor.css";
 import "./styles/login-card.css";
 import "./styles/splash.css";
+import "./styles/public-overlays.css";
+import "./styles/messaging.css";
 import SplashScreen from "@/components/SplashScreen";
 import { SPLASH_BOOT_SCRIPT } from "@/lib/splash";
+import { PublicOverlayProvider } from "@/components/public/PublicOverlayProvider";
+import GuestChat from "@/components/messaging/GuestChat";
 
 export const metadata: Metadata = {
   title: "Via Padua Parish",
   description:
-    "Church of San Antonio de Padua Parish — Ponso, Polangui, Albay. Building a community of faith, hope, and love.",
+    "Church of San Antonio de Padua Parish in Ponso, Polangui, Albay. Building a community of faith, hope, and love.",
 };
 
 export const viewport: Viewport = {
@@ -34,7 +38,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <SplashScreen />
-        {children}
+        <PublicOverlayProvider>
+          {children}
+          <GuestChat />
+        </PublicOverlayProvider>
       </body>
     </html>
   );

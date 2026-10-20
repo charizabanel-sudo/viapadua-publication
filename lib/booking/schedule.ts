@@ -113,9 +113,18 @@ export function checkBookingDate(iso: string, now: Date = new Date()): DateRuleE
   return null;
 }
 
+/** True when the value is a real "HH:MM" clock time (not empty or a legacy placeholder). */
+export function hasClockTime(value: string | null | undefined): boolean {
+  return timeToMinutes(value) !== null;
+}
+
 export function formatTime12h(value: string | null | undefined): string {
   const t = timeToMinutes(value);
-  if (t === null) return value?.trim() || "—";
+  if (t === null) {
+    // Legacy rows may hold a dash placeholder instead of a time.
+    const raw = value?.trim() ?? "";
+    return raw && !/^[\s-–—]+$/.test(raw) ? raw : "Time not specified";
+  }
   const h = Math.floor(t / 60);
   const m = t % 60;
   return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;

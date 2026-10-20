@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { detailLabel, formatPeso } from "@/lib/booking/catalog";
 import { getBookingDetail, isBookingStatus, listBookings, type BookingDetail, type BookingListItem } from "@/lib/booking/queries";
-import { formatDateLong, formatTime12h, toIsoDate } from "@/lib/booking/schedule";
+import { formatDateLong, formatTime12h, hasClockTime, toIsoDate } from "@/lib/booking/schedule";
 import type { BookingStatus } from "@/lib/generated/prisma/client";
 import { requireAdmin } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
@@ -195,7 +195,7 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
 function paymentText(b: Pick<BookingListItem, "paymentMethod" | "gcashReference">): string {
   if (b.paymentMethod === "gcash") return b.gcashReference ? `GCash Ref: ${b.gcashReference}` : "GCash (no reference)";
   if (b.paymentMethod === "church") return "Pay at Church";
-  return "—";
+  return "Payment method not specified";
 }
 
 function BookingCard({ booking: b, viewHref, returnTo }: { booking: BookingListItem; viewHref: string; returnTo: string }) {
@@ -229,7 +229,8 @@ function BookingCard({ booking: b, viewHref, returnTo }: { booking: BookingListI
                 <path d="M12 8v5l3 2" />
               </svg>
             </span>
-            {formatDateLong(date)} at {formatTime12h(b.bookingTime)}
+            {formatDateLong(date)}
+            {hasClockTime(b.bookingTime) ? ` at ${formatTime12h(b.bookingTime)}` : ""}
           </div>
           <div className="detail-item">
             <span className="detail-icon" aria-hidden="true">
@@ -277,7 +278,7 @@ function Detail({ label, value, wide }: { label: string; value: string; wide?: b
   return (
     <div className={`modal-detail${wide ? " wide" : ""}`}>
       <span>{label}</span>
-      <strong>{value || "—"}</strong>
+      <strong>{value || "Not provided"}</strong>
     </div>
   );
 }
@@ -365,7 +366,7 @@ function DetailsModal({ booking: b, closeHref, returnTo }: { booking: BookingDet
             <ul className="history-list">
               {b.statusEvents.map((e) => (
                 <li key={e.id}>
-                  {formatTimestamp(e.createdAt)} — {STATUS_LABEL[e.fromStatus]} → {STATUS_LABEL[e.toStatus]}
+                  {formatTimestamp(e.createdAt)}: {STATUS_LABEL[e.fromStatus]} to {STATUS_LABEL[e.toStatus]}
                   {e.admin ? ` by ${e.admin.name}` : ""}
                 </li>
               ))}

@@ -153,7 +153,7 @@ model AdminEvent {
   @@map("admin_events")
 }
 
-/// Legacy chat history (preserved; the chat module is not migrated yet).
+/// Legacy account chat history. Only the admin inbox may read these messages.
 model ChatMessage {
   id        Int        @id @default(autoincrement())
   userId    Int        @map("user_id")
@@ -165,6 +165,48 @@ model ChatMessage {
 
   @@index([userEmail, createdAt])
   @@map("chat_messages")
+}
+
+/// Anonymous browser credential. Only a hash of the random cookie is persisted.
+model GuestChatSession {
+  id           String            @id @db.VarChar(64)
+  expiresAt    DateTime          @map("expires_at") @db.Timestamptz(6)
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  conversation GuestConversation?
+
+  @@index([expiresAt])
+  @@map("guest_chat_sessions")
+}
+
+model GuestConversation {
+  id              String           @id @default(uuid()) @db.Uuid
+  sessionId       String           @unique @map("session_id") @db.VarChar(64)
+  displayName     String           @map("display_name") @db.VarChar(80)
+  contact         String?          @db.VarChar(120)
+  guestLastReadId Int              @default(0) @map("guest_last_read_id")
+  adminLastReadId Int              @default(0) @map("admin_last_read_id")
+  lastMessageAt   DateTime         @default(now()) @map("last_message_at") @db.Timestamptz(6)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  session         GuestChatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  messages        GuestChatMessage[]
+
+  @@index([lastMessageAt, id])
+  @@map("guest_conversations")
+}
+
+model GuestChatMessage {
+  id              Int               @id @default(autoincrement())
+  conversationId  String            @map("conversation_id") @db.Uuid
+  /// A client-generated UUID makes retries idempotent inside the owned thread.
+  clientMessageId String            @unique @map("client_message_id") @db.Uuid
+  sender          ChatSender
+  text            String            @db.VarChar(2000)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  conversation    GuestConversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+
+  @@unique([conversationId, clientMessageId])
+  @@index([conversationId, id])
+  @@map("guest_chat_messages")
 }
 
 /// Admin-only accounts, created with `npm run admin:create` or the legacy import.
