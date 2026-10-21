@@ -36,6 +36,9 @@
     --shadow-card: 0 4px 20px rgb(58 32 26 / 5%);
     --shadow-float: 0 24px 64px rgb(58 32 26 / 16%);
     --focus-ring: 0 0 0 4px rgb(87 29 48 / 13%);
+    --scrollbar-track: var(--canvas);
+    --scrollbar-thumb: #a37b87;
+    --scrollbar-thumb-hover: var(--brand-hover);
 }
 @font-face { font-family: 'Via Padua Editorial'; src: url('/fonts/eb-garamond-latin-400-normal.woff2') format('woff2'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Via Padua Editorial'; src: url('/fonts/eb-garamond-latin-600-normal.woff2') format('woff2'); font-weight: 600; font-display: swap; }
@@ -53,6 +56,26 @@ button, input, select, textarea { font-family: inherit; }
 button, input:not(.cert-field):not([type="checkbox"]):not([type="radio"]):not([type="range"]), select { min-height: 44px; }
 img, video { max-width: 100%; }
 [hidden] { display: none !important; }
+
+/* Keep native scrolling; customize only where the browser supports the appearance. */
+@media (forced-colors: none) {
+    * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track); }
+    *:hover { scrollbar-color: var(--scrollbar-thumb-hover) var(--scrollbar-track); }
+
+    @supports selector(::-webkit-scrollbar) {
+        /* Standard non-auto values override the rounded WebKit thumb in Chromium. */
+        *, *:hover { scrollbar-width: auto; scrollbar-color: auto; }
+        *::-webkit-scrollbar { width: 10px; height: 10px; }
+        *::-webkit-scrollbar-track, *::-webkit-scrollbar-corner { background: var(--scrollbar-track); }
+        *::-webkit-scrollbar-thumb {
+            background: var(--scrollbar-thumb);
+            border: 2px solid var(--scrollbar-track);
+            border-radius: 999px;
+            min-height: 28px;
+        }
+        *::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+    }
+}
 
 /* ===== ACCESSIBILITY ===== */
 a:focus-visible,

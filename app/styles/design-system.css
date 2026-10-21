@@ -1,4 +1,7 @@
 /* Shared presentation layer. Certificate artwork and print documents own their typography. */
+.vp-home .about-section-actions { display: flex; justify-content: flex-end; width: min(950px, 100%); margin: 0 auto 24px; }
+.vp-home .about-close { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border: 1px solid var(--brand); border-radius: var(--radius-control); background: var(--brand); color: var(--surface); font: 600 14px/1.4 var(--font-body); cursor: pointer; transition: background-color .2s ease; }
+.vp-home .about-close:hover { background: var(--brand-hover); }
 .navbar, .vp-home .navbar, .vp-home .navbar.scrolled {
   height: auto; min-height: 82px; background: var(--surface); color: var(--ink);
   border-bottom: 1px solid var(--line); box-shadow: none; position: sticky; top: 0; z-index: 100;
@@ -19,13 +22,13 @@
 
 .vp-admin { --sidebar-width: 256px; background: var(--canvas); color: var(--ink); overflow-x: clip; }
 .vp-admin .dashboard { background: var(--canvas); }
-.vp-admin .sidebar { width: var(--sidebar-width); min-width: var(--sidebar-width); height: 100dvh; background: linear-gradient(165deg, var(--brand), var(--brand-deep)); }
+.vp-admin .sidebar { --scrollbar-track: var(--brand-deep); --scrollbar-thumb: #b69aa1; --scrollbar-thumb-hover: #e0c6cf; width: var(--sidebar-width); min-width: var(--sidebar-width); height: 100dvh; background: linear-gradient(165deg, var(--brand), var(--brand-deep)); }
 .vp-admin .sidebar-logo { flex-shrink: 0; height: 100px; padding: 24px 22px; gap: 12px; }
 .vp-admin .logo-icon { width: 43px; height: 46px; border: 1px solid rgb(215 194 158 / 35%); background: rgb(255 255 255 / 7%); border-radius: 12px; }
 .vp-admin .logo-icon i { color: var(--champagne); font-size: 22px; }
 .vp-admin .logo-text h2 { font-size: 21px; letter-spacing: -.4px; line-height: 1.2; }
 .vp-admin .logo-text p { font-size: 11px; font-weight: 500; color: var(--champagne); letter-spacing: .03em; white-space: normal; line-height: 1.4; }
-.vp-admin .sidebar-nav { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px 14px; scrollbar-width: thin; scrollbar-color: #9b7780 transparent; }
+.vp-admin .sidebar-nav { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px 14px; }
 .vp-admin .nav-item { min-height: 44px; height: auto; padding: 12px 14px; gap: 12px; margin-bottom: 4px; color: #eadde0; font-size: 13px; font-weight: 500; border-radius: 10px; }
 .vp-admin .nav-item i { width: 20px; font-size: 16px; text-align: center; flex-shrink: 0; }
 .vp-admin .nav-item.active { background: #f1e7da; color: var(--brand); box-shadow: none; font-weight: 700; }
@@ -66,7 +69,7 @@
 .vp-admin .card-head h2 { font-size: 17px; font-weight: 600; letter-spacing: -.3px; }
 .vp-admin .card-head .sub, .vp-admin .card-link { font-size: 12px; }
 .vp-admin .card-link { color: var(--brand); }
-.vp-admin .table-wrap { position: relative; max-width: 100%; min-width: 0; border-color: var(--line); scrollbar-width: thin; scrollbar-color: var(--champagne) var(--surface-soft); }
+.vp-admin .table-wrap { position: relative; max-width: 100%; min-width: 0; border-color: var(--line); }
 .vp-admin .data-table { font-size: 13px; }
 .vp-admin .data-table th { font-size: 10px; letter-spacing: .07em; background: var(--surface-soft); color: var(--muted); padding: 13px 12px; }
 .vp-admin .data-table td { padding: 15px 12px; border-color: var(--line); color: var(--ink); }
