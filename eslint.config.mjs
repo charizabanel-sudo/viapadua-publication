@@ -7,6 +7,8 @@ export default defineConfig([
   ...nextTs,
   globalIgnores([
     ".next/**",
+    "tmp/**",
+    "public/pdf.worker.min.mjs",
     "out/**",
     "build/**",
     "next-env.d.ts",

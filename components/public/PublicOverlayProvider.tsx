@@ -8,7 +8,7 @@ export type PublicOverlay = "services" | "login" | "chat";
 type ServicesState = { service: string; step: string };
 type OverlayState = { active: PublicOverlay | null; servicesState: ServicesState };
 type OverlayContext = OverlayState & {
-  requestOpen: (kind: PublicOverlay, options?: { service?: string }) => boolean;
+  requestOpen: (kind: PublicOverlay, options?: { service?: string; step?: string }) => boolean;
   requestClose: () => boolean;
   registerGuard: (kind: PublicOverlay, guard: () => boolean) => () => void;
   navigateServices: (state: Partial<ServicesState>) => void;
@@ -88,11 +88,11 @@ export function PublicOverlayProvider({ children }: { children: ReactNode }) {
     return () => { body.style.overflow = old.overflow; body.style.paddingRight = old.paddingRight; };
   }, [state.active]);
 
-  const requestOpen = useCallback((kind: PublicOverlay, options?: { service?: string }) => {
+  const requestOpen = useCallback((kind: PublicOverlay, options?: { service?: string; step?: string }) => {
     if (kind !== current.current.active && !mayLeave()) return false;
     const service = options?.service;
     if (kind === "services" && service && service !== current.current.servicesState.service && current.current.active !== "services" && !(guards.current.get("services")?.() ?? true)) return false;
-    writeLocation({ active: kind, servicesState: service === undefined ? current.current.servicesState : { service, step: service === "blessing" ? "blessing" : service ? "form" : "catalog" } });
+    writeLocation({ active: kind, servicesState: service === undefined ? current.current.servicesState : { service, step: options?.step ?? (service === "blessing" ? "blessing" : service ? "form" : "catalog") } });
     return true;
   }, [mayLeave, writeLocation]);
   const requestClose = useCallback(() => {
@@ -124,14 +124,14 @@ export function usePublicOverlay() {
   return value;
 }
 
-export function ServicesLink({ service, children, ...props }: { service?: string; children: ReactNode; className?: string; "aria-label"?: string }) {
+export function ServicesLink({ service, step, children, ...props }: { service?: string; step?: "certificate"; children: ReactNode; className?: string; "aria-label"?: string }) {
   const { requestOpen } = usePublicOverlay();
-  const href = `/?services=1${service ? `&service=${encodeURIComponent(service)}&step=${service === "blessing" ? "blessing" : "form"}` : ""}`;
+  const href = `/?services=1${service ? `&service=${encodeURIComponent(service)}&step=${step ?? (service === "blessing" ? "blessing" : "form")}` : ""}`;
   function click(event: MouseEvent<HTMLAnchorElement>) {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     if (window.location.pathname !== "/") return;
     event.preventDefault();
-    requestOpen("services", service === undefined ? undefined : { service });
+    requestOpen("services", service === undefined ? undefined : { service, step });
   }
   return <a href={href} onClick={click} {...props}>{children}</a>;
 }

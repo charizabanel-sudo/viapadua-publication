@@ -1,3 +1,4 @@
+import DownloadLink from "@/components/admin/DownloadLink";
 import PrintButton from "@/components/admin/PrintButton";
 import { EVENT_TYPE_LABEL } from "@/lib/admin/events";
 import { getReport, normalizeReportFilters } from "@/lib/admin/reports";
@@ -47,12 +48,12 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
         </div>
         <div className="page-actions no-print">
           <PrintButton label="Print report" />
-          <a className="btn btn-primary" href={`/admin/export?kind=bookings&${query}`} download>
+          <DownloadLink className="btn btn-primary" href={`/admin/export?kind=bookings&${query}`}>
             <i className="fas fa-download" aria-hidden="true" /> Bookings CSV
-          </a>
-          <a className="btn btn-primary" href={`/admin/export?kind=guests&${query}`} download>
+          </DownloadLink>
+          <DownloadLink className="btn btn-primary" href={`/admin/export?kind=guests&${query}`}>
             <i className="fas fa-download" aria-hidden="true" /> Guest report CSV
-          </a>
+          </DownloadLink>
         </div>
       </header>
 

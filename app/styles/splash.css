@@ -18,8 +18,8 @@ html.vp-splash-on .vp-splash {
     position: fixed; inset: 0; z-index: 5000;
     display: flex; align-items: center; justify-content: center;
     background:
-        radial-gradient(ellipse 60% 50% at 50% 42%, rgba(244, 201, 40, 0.14), transparent 70%),
-        linear-gradient(180deg, #0b2852 0%, #071f42 100%);
+        radial-gradient(ellipse 60% 50% at 50% 42%, rgb(215 194 158 / 0.14), transparent 70%),
+        linear-gradient(180deg, var(--brand-hover) 0%, var(--brand) 100%);
     color: #ffffff; text-align: center;
     transition: opacity 0.38s ease, visibility 0.38s ease;
     animation: vpSplashFailsafe 0.3s ease 4s forwards;
@@ -27,15 +27,15 @@ html.vp-splash-on .vp-splash {
 html.vp-splash-on.vp-splash-leaving .vp-splash { opacity: 0; visibility: hidden; }
 
 .vp-splash-inner { display: flex; flex-direction: column; align-items: center; animation: vpSplashIn 0.45s ease-out both; }
-.vp-splash-logo { border-radius: 20px; box-shadow: 0 12px 32px rgba(244, 201, 40, 0.28); }
+.vp-splash-logo { border-radius: 20px; box-shadow: 0 12px 32px rgb(215 194 158 / 0.28); }
 .vp-splash-name {
     margin-top: 18px; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 30px; font-weight: 800; letter-spacing: -0.01em;
 }
-.vp-splash-sub { margin-top: 4px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #f4c928; }
+.vp-splash-sub { margin-top: 4px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--champagne); }
 .vp-splash-bar { position: relative; width: 140px; height: 3px; margin-top: 22px; border-radius: 3px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
 .vp-splash-bar span {
-    position: absolute; inset: 0; width: 40%; border-radius: 3px; background: #f4c928;
+    position: absolute; inset: 0; width: 40%; border-radius: 3px; background: var(--champagne);
     animation: vpSplashBar 1s ease-in-out infinite;
 }
 

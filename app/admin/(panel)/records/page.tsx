@@ -1,4 +1,6 @@
+import UploadDocument from "@/components/portal/UploadDocument";
 import Link from "next/link";
+import DownloadLink from "@/components/admin/DownloadLink";
 import ActionButton from "@/components/admin/ActionButton";
 import CertificateEditor from "@/components/admin/CertificateEditor";
 import { formatPeso } from "@/lib/booking/catalog";
@@ -58,9 +60,9 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
           <Link className="btn btn-outline" href={pageHref(list.page)} prefetch={false}>
             <i className="fas fa-rotate" aria-hidden="true" /> Refresh
           </Link>
-          <a className="btn btn-primary" href={exportHref} download>
+          <DownloadLink className="btn btn-primary" href={exportHref}>
             <i className="fas fa-download" aria-hidden="true" /> Export CSV
-          </a>
+          </DownloadLink>
         </div>
       </header>
 
@@ -198,6 +200,7 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
                       <i className="fas fa-eye" aria-hidden="true" /> View booking
                     </Link>
                   </div>
+                  <details className="portal-card"><summary>Private documents and receipts</summary>{r.paymentProof && <p><a href={`/api/bookings/${r.id}/legacy-proof`}>Historical payment evidence</a></p>}{r.documents.map(d => <p key={d.id}><a href={`/api/documents/${d.id}`}>{d.kind}: {d.filename}</a></p>)}<UploadDocument bookingId={r.id} kind="payment_proof" />{r.paymentStatus === "paid" && <UploadDocument bookingId={r.id} kind="receipt" />}{certEligible && <UploadDocument bookingId={r.id} kind="certificate" />}</details>
                 </article>
               );
             })}

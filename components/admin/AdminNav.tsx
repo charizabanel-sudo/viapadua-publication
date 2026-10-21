@@ -6,6 +6,9 @@ import { useEffect, useState } from "react";
 
 const ITEMS = [
   { href: "/admin", label: "Dashboard", icon: "fa-chart-line", exact: true },
+  { href: "/admin/claims", label: "Account claims", icon: "fa-user-check" },
+  { href: "/admin/scanner", label: "Documents", icon: "fa-camera" },
+  { href: "/admin/requests", label: "Certificates", icon: "fa-scroll" },
   { href: "/admin/bookings", label: "Bookings", icon: "fa-book-open" },
   { href: "/admin/events", label: "Events", icon: "fa-calendar-day" },
   { href: "/admin/records", label: "Records", icon: "fa-folder-open" },
@@ -24,6 +27,7 @@ export default function AdminNav() {
       if (document.visibilityState === "visible") {
         try {
           const response = await fetch("/api/admin/messages", { cache: "no-store", signal: controller.signal });
+          if (response.status === 401) { setUnread(0); controller.abort(); return; }
           if (response.ok) { const data = await response.json(); if (!controller.signal.aborted) setUnread(data.unread ?? 0); }
         } catch { /* The inbox displays detailed connection errors when opened. */ }
       }
@@ -43,6 +47,7 @@ export default function AdminNav() {
             className={`nav-item${active ? " active" : ""}`}
             aria-current={active ? "page" : undefined}
             title={item.label}
+            aria-label={item.label}
           >
             <i className={`fas ${item.icon}`} aria-hidden="true" />
             <span>{item.label}</span>

@@ -101,6 +101,7 @@ function EventForm({ event, defaultDate, onDone }: { event?: EventRow; defaultDa
           {err.description && <span className="error" id="ev-description-err">{err.description}</span>}
         </div>
       </div>
+      <label className="check-label"><input type="checkbox" name="isPublic" defaultChecked={event?.isPublic ?? false} />Publish this event in the parishioner calendar</label>
       <div className="modal-footer">
         <button type="button" className="btn btn-outline" onClick={onDone} disabled={pending}>
           Cancel

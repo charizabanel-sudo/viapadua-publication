@@ -1,4 +1,4 @@
-.public-overlay { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center; padding: 24px; color: #172d4b; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+.public-overlay { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center; padding: 24px; color: var(--ink); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
 .public-overlay[hidden], .public-dialog [hidden] { display: none !important; }
 .public-overlay-backdrop { position: absolute; inset: 0; background: rgb(4 16 36 / 65%); backdrop-filter: blur(4px); }
 .public-dialog { position: relative; z-index: 1; max-height: calc(100dvh - 48px); overflow-y: auto; overscroll-behavior: contain; outline: none; animation: vpCardIn .2s ease-out both; }
@@ -6,20 +6,20 @@
 .public-dialog h3[tabindex="-1"]:focus { outline: none; }
 .public-dialog.login-card-workspace { position: relative; inset: auto; z-index: auto; display: block; padding: 0; width: min(460px, 100%); }
 .public-dialog.login-card-workspace .login-card { width: 100%; max-height: none; }
-.public-dialog.services-workspace { width: min(1120px, 100%); min-height: 0; background: #f8f9fb; border-radius: 20px; box-shadow: 0 24px 64px rgb(0 0 0 / 28%); }
-.services-workspace-head { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 24px 30px 20px; background: #071f42; color: white; }
+.public-dialog.services-workspace { width: min(1120px, 100%); min-height: 0; background: var(--canvas); border-radius: 20px; box-shadow: 0 24px 64px rgb(0 0 0 / 28%); }
+.services-workspace-head { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 24px 30px 20px; background: var(--brand); color: white; }
 .services-workspace-head h2 { font-size: 26px; margin: 0 0 5px; }
-.services-workspace-head p { color: #d7e0eb; font-size: 14px; line-height: 1.5; }
+.services-workspace-head p { color: #d7e0eb; font-size: 16px; line-height: 1.5; }
 .workspace-close { width: 42px; height: 42px; border: 1px solid rgb(255 255 255 / 25%); color: white; background: rgb(255 255 255 / 8%); border-radius: 50%; flex-shrink: 0; cursor: pointer; }
 .services-workspace-body { padding: 18px 30px 30px; }
-.services-workspace-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; font-size: 14px; color: #58677a; }
-.services-workspace-nav button { display: inline-flex; align-items: center; gap: 7px; padding: 9px 10px; border: 1px solid #dce2e9; background: white; border-radius: 8px; color: #172d4b; font: inherit; font-weight: 600; cursor: pointer; }
+.services-workspace-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; font-size: 16px; color: #58677a; }
+.services-workspace-nav button { display: inline-flex; align-items: center; gap: 7px; padding: 9px 10px; border: 1px solid #dce2e9; background: white; border-radius: 8px; color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
 .vp-services.services-workspace .cards-grid { align-items: stretch; margin-bottom: 0; }
 .vp-services.services-workspace .card:hover { transform: none; }
 .vp-services.services-workspace .services-step { max-width: 760px; margin: 0 auto; padding: 24px; background: white; border: 1px solid #e3e8ef; border-radius: 14px; }
 .vp-services.services-workspace .booking-fee { display: inline-block; margin-left: 8px; font-size: 16px; color: #58677a; font-weight: 600; }
 .vp-services.services-workspace .payment-error { margin-bottom: 14px; }
-.vp-services.services-workspace .blocked-notice { font-size: 13px; padding: 12px 16px; }
+.vp-services.services-workspace .blocked-notice { font-size: 16px; padding: 12px 16px; }
 .vp-services.services-workspace .awaiting-note { align-items: flex-start; line-height: 1.5; }
 .vp-services.services-workspace .requirements-content ul li { align-items: flex-start; }
 .vp-services.services-workspace .requirements-content ul li i { margin-top: 6px; flex-shrink: 0; }
@@ -30,9 +30,9 @@
   .public-dialog.services-workspace { border-radius: 14px; }
   .services-workspace-head { padding: 18px 16px; }
   .services-workspace-head h2 { font-size: 22px; }
-  .services-workspace-head p { font-size: 13px; }
+  .services-workspace-head p { font-size: 16px; }
   .services-workspace-body { padding: 14px 14px 20px; }
-  .services-workspace-nav { align-items: flex-start; font-size: 12px; }
+  .services-workspace-nav { align-items: flex-start; font-size: 16px; }
   .services-workspace-nav > span { padding-top: 9px; }
   .vp-services.services-workspace .services-step { padding: 18px 14px; }
   .vp-services.services-workspace .cards-grid { gap: 16px; }

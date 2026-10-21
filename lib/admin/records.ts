@@ -21,6 +21,7 @@ export function certificateKind(service: string): CertificateKind {
 }
 
 const recordSelect = {
+  documents: { select: { id: true, kind: true, filename: true, released: true } },
   id: true,
   reference: true,
   requesterName: true,
@@ -34,6 +35,7 @@ const recordSelect = {
   fee: true,
   paymentMethod: true,
   paymentStatus: true,
+  paymentProof: true,
   paidAt: true,
   certificate: true,
   details: true,
@@ -94,6 +96,7 @@ export async function markBookingPaid(db: Db, params: { bookingId: number; admin
       where: { id: params.bookingId },
       data: { paymentStatus: "paid", paidAt: new Date(), paidById: params.adminId },
     });
+    await tx.portalAudit.create({ data: { action: "payment_verified", targetId: String(params.bookingId), adminId: params.adminId, detail: { from: "unpaid", to: "paid" } } });
     return { ok: true, reference: row.reference } as const;
   });
 }

@@ -15,7 +15,6 @@ export const metadata: Metadata = {
 
 export default async function AdminPanelLayout({ children }: { children: ReactNode }) {
   const admin = await requireAdmin();
-  const displayName = admin.name.length > 14 ? `${admin.name.slice(0, 14)}…` : admin.name;
 
   return (
     <div className={`vp-admin ${inter.variable}`}>
@@ -39,7 +38,7 @@ export default async function AdminPanelLayout({ children }: { children: ReactNo
                 {admin.name.trim().charAt(0).toUpperCase() || "A"}
               </div>
               <div className="user-info">
-                <strong title={admin.name}>{displayName}</strong>
+                <strong title={admin.name}>{admin.name}</strong>
                 <span>Admin</span>
               </div>
             </div>

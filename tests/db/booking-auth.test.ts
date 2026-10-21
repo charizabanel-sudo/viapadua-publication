@@ -19,7 +19,7 @@ import { createPrismaClient, type Db } from "@/lib/db/client";
 
 const url = process.env.TEST_DATABASE_URL;
 const dbName = url ? new URL(url).pathname.slice(1) : "";
-const skip = !url ? "TEST_DATABASE_URL not set" : !dbName.includes("test") ? `refusing to run on "${dbName}"` : false;
+const skip = !url ? "TEST_DATABASE_URL not set" : (!/(?:^|_)test(?:_|$)/i.test(dbName) || !["127.0.0.1", "localhost", "::1", "[::1]"].includes(new URL(url).hostname)) ? `refusing to run on "${dbName}"` : false;
 
 const SECRET = "x".repeat(40);
 const NOW = new Date("2026-10-19T17:00:00Z");

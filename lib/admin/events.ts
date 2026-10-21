@@ -43,6 +43,7 @@ export const eventInputSchema = z.object({
   type: z.string().refine(isEventType, "Choose an event type."),
   location: text(200, "Location"),
   description: text(2000, "Description"),
+  isPublic: z.boolean().default(false),
 });
 
 export type EventInput = {
@@ -52,6 +53,7 @@ export type EventInput = {
   type: AdminEventType;
   location: string;
   description: string;
+  isPublic?: boolean;
 };
 
 export type EventValidation = { ok: true; data: EventInput } | { ok: false; fieldErrors: Record<string, string> };
@@ -64,6 +66,7 @@ export function validateEventInput(raw: Record<string, unknown>): EventValidatio
     type: String(raw.type ?? ""),
     location: String(raw.location ?? ""),
     description: String(raw.description ?? ""),
+    isPublic: raw.isPublic === "on" || raw.isPublic === true,
   });
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
@@ -81,6 +84,7 @@ export type EventRow = {
   type: AdminEventType;
   location: string;
   description: string;
+  isPublic?: boolean;
 };
 
 function toRow(e: {
@@ -91,6 +95,7 @@ function toRow(e: {
   type: AdminEventType;
   location: string | null;
   description: string | null;
+  isPublic?: boolean;
 }): EventRow {
   return {
     id: e.id,
@@ -100,10 +105,11 @@ function toRow(e: {
     type: e.type,
     location: e.location ?? "",
     description: e.description ?? "",
+    isPublic: e.isPublic ?? false,
   };
 }
 
-const rowSelect = { id: true, title: true, eventDate: true, eventTime: true, type: true, location: true, description: true } as const;
+const rowSelect = { isPublic: true, id: true, title: true, eventDate: true, eventTime: true, type: true, location: true, description: true } as const;
 
 export type EventScope = "upcoming" | "past" | "all";
 
@@ -153,6 +159,7 @@ function toData(input: EventInput) {
     type: input.type,
     location: input.location || null,
     description: input.description || null,
+    isPublic: input.isPublic ?? false,
   };
 }
 

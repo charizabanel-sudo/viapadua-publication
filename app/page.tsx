@@ -1,10 +1,12 @@
 import SiteHeader from "@/components/SiteHeader";
 import DeveloperPhoto from "@/components/DeveloperPhoto";
 import HeroBackground from "@/components/home/HeroBackground";
+import HeroEmblem from "@/components/home/HeroEmblem";
+import ServiceShowcase from "@/components/home/ServiceShowcase";
 import { AboutProvider, AboutSection, LearnMoreButton } from "@/components/AboutDisclosure";
 import { ServicesLink } from "@/components/public/PublicOverlayProvider";
 import ServicesBooking from "@/components/services/ServicesBooking";
-import { CONTACTS, DEVELOPERS, SERVICES, SITE } from "@/lib/site";
+import { CONTACTS, DEVELOPERS, SITE } from "@/lib/site";
 
 export default function HomePage() {
   return (
@@ -16,11 +18,9 @@ export default function HomePage() {
           {/* ===== HERO ===== */}
           <section className="hero">
             <HeroBackground />
-            <div className="hero-content">
-              <div className="hero-main-icon" aria-hidden="true">
-                <i className="fas fa-church" />
-              </div>
-              <h1>Welcome to {SITE.parish}</h1>
+            <div className="hero-layout"><div className="hero-content">
+              <span className="hero-eyebrow">Via Padua · Our parish, together</span>
+              <h1><span>Welcome to</span> {SITE.parish}</h1>
               <div className="hero-location">
                 <i className="fas fa-map-marker-alt" aria-hidden="true" /> {SITE.location}
               </div>
@@ -31,7 +31,7 @@ export default function HomePage() {
                 </ServicesLink>
                 <LearnMoreButton />
               </div>
-            </div>
+            </div><HeroEmblem /></div>
           </section>
 
           {/* ===== ABOUT / DEVELOPERS (hidden until Learn More) ===== */}
@@ -77,24 +77,7 @@ export default function HomePage() {
             <h2 id="services-title">Our Services</h2>
             <p>Experience the sacraments and services we offer</p>
           </div>
-          <div className="services-grid">
-            {SERVICES.map((service) => (
-              <div className="service-card" key={service.title}>
-                <div className={`service-icon icon-${service.color}`} aria-hidden="true">
-                  <i className={`fas ${service.icon}`} />
-                </div>
-                <h3>{service.title}</h3>
-                <p>{service.description}</p>
-                <ServicesLink
-                  service={new URL(service.href, "https://viapadua.local").searchParams.get("service") ?? undefined}
-                  className="book-now"
-                  aria-label={`Book ${service.title}`}
-                >
-                  Book Now
-                </ServicesLink>
-              </div>
-            ))}
-          </div>
+          <ServiceShowcase />
         </section>
 
         {/* ===== CONTACT ===== */}
@@ -123,7 +106,7 @@ export default function HomePage() {
           </div>
         </section>
       </main>
-      <ServicesBooking gcashPayee={{ number: process.env.PARISH_GCASH_NUMBER?.trim() || null, name: process.env.PARISH_GCASH_NAME?.trim() || "Church of San Antonio de Padua" }} />
+      <ServicesBooking gcashPayee={{ number: process.env.PARISH_GCASH_NUMBER?.trim() || null, name: process.env.PARISH_GCASH_NAME?.trim() || null, qrPath: /^\/images\/[a-zA-Z0-9/_.-]+$/.test(process.env.PARISH_PAYMENT_QR_PATH ?? "") ? process.env.PARISH_PAYMENT_QR_PATH! : null }} />
     </div>
   );
 }

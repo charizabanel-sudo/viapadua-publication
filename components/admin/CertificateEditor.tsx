@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   CERT_FIELDS,
   certKind,
@@ -9,12 +17,15 @@ import {
   getCertificateHTML,
   type CertificateBooking,
 } from "@/lib/certificates/legacy-certificate";
+import { saveRequestCertificateAction } from "@/lib/server/actions/portal";
 import { saveCertificateAction } from "@/lib/server/actions/admin";
 import Dialog from "./Dialog";
+import { certificatePdf, downloadBlob } from "@/lib/certificates/pdf";
 import { showToast } from "./Toaster";
 
 type Props = {
   bookingId: number;
+  requestId?: string;
   reference: string;
   booking: CertificateBooking;
   saved: Record<string, unknown> | null;
@@ -26,11 +37,20 @@ type Values = Record<string, string | number>;
 const DISCARD_PROMPT = "Discard unsaved certificate changes?";
 
 /** Opens the certificate workspace. Admins edit details directly on the certificate. */
-export default function CertificateEditor({ bookingId, reference, booking, saved, label }: Props) {
+export default function CertificateEditor({
+  bookingId,
+  requestId,
+  reference,
+  booking,
+  saved,
+  label,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [formKey, setFormKey] = useState(0);
   // Latest saved certificate from this dialog (the page also refreshes from the server after a save).
-  const [localSaved, setLocalSaved] = useState<Record<string, unknown> | null>(null);
+  const [localSaved, setLocalSaved] = useState<Record<string, unknown> | null>(
+    null,
+  );
   const dirtyRef = useRef(false);
 
   const requestClose = useCallback(() => {
@@ -51,9 +71,15 @@ export default function CertificateEditor({ bookingId, reference, booking, saved
       >
         <i className="fas fa-scroll" aria-hidden="true" /> {label}
       </button>
-      <Dialog open={open} title={`Certificate for ${booking.service} (${reference})`} onClose={requestClose} wide>
+      <Dialog
+        open={open}
+        title={`Certificate for ${booking.service} (${reference})`}
+        onClose={requestClose}
+        wide
+      >
         <Workspace
           key={formKey}
+          requestId={requestId}
           bookingId={bookingId}
           booking={booking}
           saved={localSaved ?? saved}
@@ -88,9 +114,18 @@ const EXTRA_LABELS: Record<string, string> = {
   brideName: "Bride's name",
 };
 
-type Field = { id: string; key: string; date: boolean; left: number; top: number; width: number; height: number };
+type Field = {
+  id: string;
+  key: string;
+  date: boolean;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
 
 function Workspace({
+  requestId,
   bookingId,
   booking,
   saved,
@@ -98,6 +133,7 @@ function Workspace({
   onDirtyChange,
   onClose,
 }: {
+  requestId?: string;
   bookingId: number;
   booking: CertificateBooking;
   saved: Record<string, unknown> | null;
@@ -113,12 +149,15 @@ function Workspace({
     return map;
   }, [fieldDefs]);
 
-  const [values, setValues] = useState<Values>(() => certPrefill(booking, saved ?? {}));
+  const [values, setValues] = useState<Values>(() =>
+    certPrefill(booking, saved ?? {}),
+  );
   const [srcDoc, setSrcDoc] = useState("");
   const [fields, setFields] = useState<Field[]>([]);
   const [focused, setFocused] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [stageWidth, setStageWidth] = useState(0);
+  const [releaseConfirmed, setReleaseConfirmed] = useState(false);
   const [pending, startTransition] = useTransition();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const printRef = useRef<HTMLIFrameElement>(null);
@@ -137,16 +176,20 @@ function Workspace({
         nameScale: Number(v.nameScale) || 100,
       };
       for (const f of fieldDefs) c[f.key] = String(v[f.key] ?? "").trim();
-      if (kind === "confirmation" || kind === "baptism") c.parents = [c.fatherName, c.motherName].filter(Boolean).join(" & ");
+      if (kind === "confirmation" || kind === "baptism")
+        c.parents = [c.fatherName, c.motherName].filter(Boolean).join(" & ");
       if (kind === "baptism") c.fullName = c.childName;
-      if (kind === "marriage") c.fullName = [c.groomName, c.brideName].filter(Boolean).join(" & ");
+      if (kind === "marriage")
+        c.fullName = [c.groomName, c.brideName].filter(Boolean).join(" & ");
       if (kind === "confirmation") c.minister = String(v.minister ?? "").trim();
       return c;
     },
     [fieldDefs, kind],
   );
 
-  const [baseline, setBaseline] = useState(() => JSON.stringify(collect(certPrefill(booking, saved ?? {}))));
+  const [baseline, setBaseline] = useState(() =>
+    JSON.stringify(collect(certPrefill(booking, saved ?? {}))),
+  );
   const dirty = JSON.stringify(collect(values)) !== baseline;
 
   useEffect(() => {
@@ -162,7 +205,9 @@ function Workspace({
     const timer = window.setTimeout(() => {
       const css = `${getCertificateCSS()} html, body { background: #ecebe4; overflow: hidden; } body { padding: 0; } .cert-sheet { width: 100% !important; box-shadow: none !important; }`;
       const html = getCertificateHTML(booking, collect(values), { edit: true });
-      setSrcDoc(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${html}</body></html>`);
+      setSrcDoc(
+        `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${html}</body></html>`,
+      );
     }, 60);
     return () => window.clearTimeout(timer);
   }, [values, booking, collect]);
@@ -170,11 +215,15 @@ function Workspace({
   /** Measures every marked field inside the certificate and positions an input over it. */
   const measure = useCallback(() => {
     const doc = frameRef.current?.contentDocument;
-    const win = frameRef.current?.contentWindow as (Window & { __certFit?: () => void }) | null;
+    const win = frameRef.current?.contentWindow as
+      (Window & { __certFit?: () => void }) | null;
     if (!doc || !win) return;
     win.__certFit?.();
     setStageWidth(stageRef.current?.clientWidth ?? 0);
-    const groups = new Map<string, { key: string; date: boolean; rects: DOMRect[] }>();
+    const groups = new Map<
+      string,
+      { key: string; date: boolean; rects: DOMRect[] }
+    >();
     let n = 0;
     doc.querySelectorAll<HTMLElement>("[data-f]").forEach((el) => {
       const key = el.dataset.f!;
@@ -192,9 +241,19 @@ function Workspace({
       const top = Math.min(...g.rects.map((r) => r.top));
       const right = Math.max(...g.rects.map((r) => r.right));
       const bottom = Math.max(...g.rects.map((r) => r.bottom));
-      next.push({ id, key: g.key, date: g.date, left, top, width: right - left, height: bottom - top });
+      next.push({
+        id,
+        key: g.key,
+        date: g.date,
+        left,
+        top,
+        width: right - left,
+        height: bottom - top,
+      });
     }
-    next.sort((a, b) => (Math.abs(a.top - b.top) < 6 ? a.left - b.left : a.top - b.top));
+    next.sort((a, b) =>
+      Math.abs(a.top - b.top) < 6 ? a.left - b.left : a.top - b.top,
+    );
     setFields(next);
   }, []);
 
@@ -202,7 +261,9 @@ function Workspace({
     measure();
     const doc = frameRef.current?.contentDocument;
     doc?.fonts?.ready.then(() => measure()).catch(() => undefined);
-    doc?.querySelector<HTMLImageElement>(".cert-bg")?.addEventListener("load", () => measure(), { once: true });
+    doc
+      ?.querySelector<HTMLImageElement>(".cert-bg")
+      ?.addEventListener("load", () => measure(), { once: true });
   }, [measure]);
 
   // Keep overlays aligned on resize / zoom.
@@ -222,11 +283,31 @@ function Workspace({
   }, [measure]);
 
   const commit = (key: string, value: string) => {
-    setValues((v) => (String(v[key] ?? "") === value ? v : { ...v, [key]: value }));
+    setValues((v) =>
+      String(v[key] ?? "") === value ? v : { ...v, [key]: value },
+    );
   };
 
-  const printClean = (cert: Record<string, string | number>) =>
-    new Promise<void>((resolve) => {
+  const referenceQr = async () => {
+    const response = await fetch("/api/admin/document-reference", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestId ? { requestId } : { bookingId }),
+    });
+    if (!response.ok)
+      throw Error("Sign in again or retry to identify this certificate.");
+    const data = await response.json();
+    return (
+      '<img alt="Parish document reference" src="' +
+      data.qr +
+      '" style="position:absolute;left:4%;bottom:15%;width:4.5%;height:auto" />'
+    );
+  };
+  const withQr = (html: string, qr: string) =>
+    html.replace("</div><script>", qr + "</div><script>");
+  const printClean = async (cert: Record<string, string | number>) => {
+    const qr = await referenceQr();
+    return new Promise<void>((resolve) => {
       const frame = printRef.current;
       if (!frame) return resolve();
       frame.onload = () => {
@@ -235,22 +316,89 @@ function Workspace({
         frame.contentWindow?.print();
         resolve();
       };
-      frame.srcdoc = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Certificate</title><style>${getCertificateCSS()}</style></head><body>${getCertificateHTML(booking, cert)}</body></html>`;
+      frame.srcdoc = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Certificate</title><style>${getCertificateCSS()}</style></head><body>${withQr(getCertificateHTML(booking, cert), qr)}</body></html>`;
     });
+  };
 
+  const downloadPdf = (release = false) => {
+    startTransition(async () => {
+      try {
+        if (release && !releaseConfirmed)
+          throw Error("Confirm parish record verification before release.");
+        const qr = await referenceQr();
+        const frame = printRef.current;
+        if (!frame) throw Error("Certificate is not ready.");
+        await new Promise<void>((resolve) => {
+          frame.onload = () => resolve();
+          frame.srcdoc =
+            "<!doctype html><html><head><style>" +
+            getCertificateCSS() +
+            " .cert-sheet{width:1536px!important;max-width:none!important}</style></head><body>" +
+            withQr(getCertificateHTML(booking, collect(values)), qr) +
+            "</body></html>";
+        });
+        const blob = await certificatePdf(frame.contentDocument!);
+        if (release && requestId) {
+          const saved = await saveRequestCertificateAction(
+            requestId,
+            collect(values),
+          );
+          if (!saved.ok) throw Error(saved.message);
+          const form = new FormData();
+          form.set(
+            "file",
+            new File([blob], "ViaPadua-Certificate.pdf", {
+              type: "application/pdf",
+            }),
+          );
+          form.set("kind", "certificate");
+          form.set("requestId", requestId);
+          form.set("verified", "true");
+          const response = await fetch("/api/documents", {
+            method: "POST",
+            body: form,
+          });
+          const result = await response.json();
+          if (!response.ok) throw Error(result.error);
+          showToast(
+            true,
+            "PDF released. The requester can download it securely.",
+          );
+        }
+        downloadBlob(blob, "ViaPadua-Certificate.pdf");
+      } catch (error) {
+        showToast(
+          false,
+          error instanceof Error ? error.message : "PDF could not be created.",
+        );
+      }
+    });
+  };
   const save = (thenPrint: boolean) => {
     const cert = collect(values);
     startTransition(async () => {
       try {
-        const result = await saveCertificateAction(bookingId, cert);
+        const result = await (requestId
+          ? saveRequestCertificateAction(requestId, cert)
+          : saveCertificateAction(bookingId, cert));
         showToast(result.ok, result.message);
         if (result.ok) {
           setBaseline(JSON.stringify(cert));
           onSaved(cert);
         }
-        if (thenPrint && (result.ok || window.confirm("The certificate could not be saved.\n\nPrint it anyway?"))) await printClean(cert);
+        if (
+          thenPrint &&
+          (result.ok ||
+            window.confirm(
+              "The certificate could not be saved.\n\nPrint it anyway?",
+            ))
+        )
+          await printClean(cert);
       } catch {
-        showToast(false, "Request failed. Check your connection and try again.");
+        showToast(
+          false,
+          "Request failed. Check your connection and try again.",
+        );
       }
     });
   };
@@ -259,7 +407,8 @@ function Workspace({
     <div className="cert-workspace">
       <div className="cert-toolbar">
         <p className="cert-tip">
-          <i className="fas fa-pen-nib" aria-hidden="true" /> Click or tab to any detail on the certificate to edit it.
+          <i className="fas fa-pen-nib" aria-hidden="true" /> Click or tab to
+          any detail on the certificate to edit it.
         </p>
         <div className="cert-name-controls">
           <label>
@@ -290,15 +439,36 @@ function Workspace({
       </div>
 
       <div className="cert-stage" ref={stageRef}>
-        <iframe ref={frameRef} title="Certificate (editable)" srcDoc={srcDoc} onLoad={onFrameLoad} tabIndex={-1} />
+        <iframe
+          ref={frameRef}
+          title="Certificate (editable)"
+          srcDoc={srcDoc}
+          onLoad={onFrameLoad}
+          tabIndex={-1}
+        />
         <div className="cert-overlays">
           {fields.map((f) => {
             const isFocused = focused === f.id;
             const value = String(values[f.key] ?? "");
-            const minW = isFocused ? Math.min(Math.max(f.width, 220), Math.max(stageWidth - 8, 120)) : Math.max(f.width, 28);
-            const left = Math.max(0, Math.min(f.left - (minW - f.width) / 2, Math.max(0, stageWidth - minW)));
-            const height = isFocused ? Math.max(f.height, 34) : Math.max(f.height, 14);
-            const style = { left, top: f.top + f.height / 2 - height / 2, width: minW, height };
+            const minW = isFocused
+              ? Math.min(Math.max(f.width, 220), Math.max(stageWidth - 8, 120))
+              : Math.max(f.width, 28);
+            const left = Math.max(
+              0,
+              Math.min(
+                f.left - (minW - f.width) / 2,
+                Math.max(0, stageWidth - minW),
+              ),
+            );
+            const height = isFocused
+              ? Math.max(f.height, 34)
+              : Math.max(f.height, 14);
+            const style = {
+              left,
+              top: f.top + f.height / 2 - height / 2,
+              width: minW,
+              height,
+            };
             const aria = `${labels[f.key] ?? f.key}${value ? "" : " (empty)"}`;
             if (f.date) {
               return (
@@ -311,7 +481,9 @@ function Workspace({
                   value={value}
                   onFocus={() => setFocused(f.id)}
                   onBlur={() => setFocused(null)}
-                  onChange={(e) => e.target.value && commit("dateGiven", e.target.value)}
+                  onChange={(e) =>
+                    e.target.value && commit("dateGiven", e.target.value)
+                  }
                 />
               );
             }
@@ -329,7 +501,9 @@ function Workspace({
                   setDraft(value);
                   setFocused(f.id);
                 }}
-                onChange={(e) => setDraft(e.target.value.replace(/[\r\n]+/g, " "))}
+                onChange={(e) =>
+                  setDraft(e.target.value.replace(/[\r\n]+/g, " "))
+                }
                 onBlur={() => {
                   if (cancelEditRef.current) cancelEditRef.current = false;
                   else commit(f.key, draft.trim());
@@ -354,20 +528,74 @@ function Workspace({
       </div>
 
       {/* Clean, marker-free document used only for printing / Save as PDF. */}
-      <iframe ref={printRef} className="cert-print-frame" title="Certificate print" aria-hidden="true" tabIndex={-1} />
+      <iframe
+        ref={printRef}
+        className="cert-print-frame"
+        title="Certificate print"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
 
+      {requestId && (
+        <label className="check-label">
+          <input
+            type="checkbox"
+            checked={releaseConfirmed}
+            onChange={(e) => setReleaseConfirmed(e.target.checked)}
+          />
+          I verified the original parish record and requester authority.
+        </label>
+      )}
       <div className="modal-footer cert-footer">
+        {requestId && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={pending || !releaseConfirmed}
+            onClick={() => downloadPdf(true)}
+          >
+            Release PDF to requester
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => downloadPdf()}
+          disabled={pending}
+        >
+          Download PDF
+        </button>
         <span className={`cert-status${dirty ? " dirty" : ""}`} role="status">
           {dirty ? "Unsaved changes" : "All changes saved"}
         </span>
-        <button type="button" className="btn btn-outline" onClick={onClose} disabled={pending}>
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={onClose}
+          disabled={pending}
+        >
           Close
         </button>
-        <button type="button" className="btn btn-primary" onClick={() => save(false)} disabled={pending}>
-          {pending ? <span className="spinner sm" aria-hidden="true" /> : <i className="fas fa-save" aria-hidden="true" />} Save
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => save(false)}
+          disabled={pending}
+        >
+          {pending ? (
+            <span className="spinner sm" aria-hidden="true" />
+          ) : (
+            <i className="fas fa-save" aria-hidden="true" />
+          )}{" "}
+          Save
         </button>
-        <button type="button" className="btn btn-gold" onClick={() => save(true)} disabled={pending}>
-          <i className="fas fa-print" aria-hidden="true" /> Save &amp; Print / PDF
+        <button
+          type="button"
+          className="btn btn-gold"
+          onClick={() => save(true)}
+          disabled={pending}
+        >
+          <i className="fas fa-print" aria-hidden="true" /> Save &amp; Print
         </button>
       </div>
     </div>

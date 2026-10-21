@@ -1,3 +1,4 @@
+export class ChatHttpError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 export async function chatRequest<T>(url: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   let response: Response;
   try { response = await fetch(url, {
@@ -12,7 +13,7 @@ export async function chatRequest<T>(url: string, body?: unknown, signal?: Abort
     throw new Error("We could not reach the parish office. Please try again.");
   }
   const result = await response.json().catch(() => null);
-  if (!response.ok || !result?.ok) throw new Error(result?.error || "Messages could not be loaded. Please try again.");
+  if (!response.ok || !result?.ok) throw new ChatHttpError(result?.error || "Messages could not be loaded. Please try again.", response.status);
   return result as T;
 }
 

@@ -5,35 +5,80 @@
     box-sizing: border-box;
 }
 
+:root {
+    --brand: #571d30;
+    --brand-hover: #713047;
+    --brand-deep: #35141f;
+    --champagne: #d7c29e;
+    --accent-ink: #785a34;
+    --canvas: #f7f3ed;
+    --surface: #fffcf8;
+    --surface-soft: #f1eae1;
+    --ink: #302b29;
+    --muted: #716862;
+    --line: #e2d9ce;
+    --success: #226649;
+    --warning: #805b17;
+    --danger: #a52c3c;
+    --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-heading: 'Via Padua Editorial', Georgia, serif;
+    --text-small: .8125rem;
+    --text-label: .875rem;
+    --text-body: 1rem;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --radius-control: 10px;
+    --radius-card: 18px;
+    --shadow-card: 0 4px 20px rgb(58 32 26 / 5%);
+    --shadow-float: 0 24px 64px rgb(58 32 26 / 16%);
+    --focus-ring: 0 0 0 4px rgb(87 29 48 / 13%);
+}
+@font-face { font-family: 'Via Padua Editorial'; src: url('/fonts/eb-garamond-latin-400-normal.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Via Padua Editorial'; src: url('/fonts/eb-garamond-latin-600-normal.woff2') format('woff2'); font-weight: 600; font-display: swap; }
 html { scroll-behavior: smooth; }
 
 body {
-    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-    background: #f8f9fb;
-    color: #172d4b;
+    font-size: var(--text-body);
+    line-height: 1.55;
+    font-family: var(--font-body);
+    background: var(--canvas);
+    color: var(--ink);
 }
 
 button, input, select, textarea { font-family: inherit; }
+button, input:not(.cert-field):not([type="checkbox"]):not([type="radio"]):not([type="range"]), select { min-height: 44px; }
+img, video { max-width: 100%; }
+[hidden] { display: none !important; }
 
 /* ===== ACCESSIBILITY ===== */
 a:focus-visible,
 button:focus-visible,
 [role="button"]:focus-visible,
 [role="radio"]:focus-visible {
-    outline: 2px solid #f4c928;
+    outline: 3px solid var(--brand-hover);
     outline-offset: 2px;
+}
+
+input:not(.cert-field):focus-visible, select:focus-visible, textarea:focus-visible, [tabindex="0"]:focus-visible, summary:focus-visible {
+    outline: 3px solid var(--brand-hover); outline-offset: 3px;
 }
 
 .sr-only {
     position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
+    width: 1px !important;
+    height: 1px !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
     margin: -1px;
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
-    border: 0;
+    border: 0 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

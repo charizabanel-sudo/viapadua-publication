@@ -38,11 +38,15 @@ function rethrowDuplicate(error: unknown): never {
   throw error;
 }
 
-async function ownedConversation(db: Db | Tx, token: string | undefined, conversationId?: string) {
+async function ownedConversation(db: Db | Tx, token: string | undefined, conversationId?: string, accountUserId?: number) {
   const id = credentialHash(token);
   const session = id ? await db.guestChatSession.findUnique({ where: { id }, include: { conversation: true } }) : null;
   if (!session || session.expiresAt.getTime() <= Date.now()) {
     if (conversationId) throw new MessagingError("not_found", "This conversation is not available in this browser.", 404);
+    return null;
+  }
+  if (session.conversation?.userId && session.conversation.userId !== accountUserId) {
+    if (conversationId) throw new MessagingError("not_found", "Conversation unavailable.", 404);
     return null;
   }
   if (conversationId && session.conversation?.id !== conversationId) throw new MessagingError("not_found", "This conversation is not available in this browser.", 404);
@@ -67,8 +71,8 @@ async function conversationSnapshot(db: Db | Tx, id: string, reader: "guest" | "
   };
 }
 
-export async function getGuestChat(db: Db, token: string | undefined, options: { conversationId?: string; before?: number } = {}): Promise<ChatSnapshot> {
-  const session = await ownedConversation(db, token, options.conversationId);
+export async function getGuestChat(db: Db, token: string | undefined, options: { conversationId?: string; before?: number; accountUserId?: number } = {}): Promise<ChatSnapshot> {
+  const session = await ownedConversation(db, token, options.conversationId, options.accountUserId);
   return session?.conversation ? conversationSnapshot(db, session.conversation.id, "guest", options.before) : emptySnapshot();
 }
 
@@ -110,9 +114,9 @@ async function markRead(tx: Tx, conversationId: string, messageId: number, reade
   else await tx.guestConversation.updateMany({ where: { id: conversationId, adminLastReadId: { lt: messageId } }, data: { adminLastReadId: messageId } });
 }
 
-export async function performGuestAction(db: Db, token: string | undefined, action: GuestChatAction, context: { ip: string; secret: string }): Promise<{ snapshot: ChatSnapshot; credential?: { token: string; expiresAt: Date } }> {
+export async function performGuestAction(db: Db, token: string | undefined, action: GuestChatAction, context: { ip: string; secret: string; userId?: number }): Promise<{ snapshot: ChatSnapshot; credential?: { token: string; expiresAt: Date } }> {
   const result = await db.$transaction(async (tx) => {
-    let session = await ownedConversation(tx, token, action.conversationId);
+    let session = await ownedConversation(tx, token, action.conversationId, context.userId);
     if (action.op === "read") {
       if (!session?.conversation) throw new MessagingError("not_found", "Conversation not found.", 404);
       await markRead(tx, session.conversation.id, action.messageId, "guest");
@@ -127,7 +131,7 @@ export async function performGuestAction(db: Db, token: string | undefined, acti
     await lockBuckets(tx, [ipBucket, sessionBucket, ...(isNew ? [creationBucket] : [])]);
     // Another request may have created the conversation while we waited for its lock.
     if (session) {
-      session = await ownedConversation(tx, token, action.conversationId);
+      session = await ownedConversation(tx, token, action.conversationId, context.userId);
       if (!session) throw new MessagingError("session_expired", "Your chat session has expired. Reopen chat to start a new conversation.", 401);
     }
     let conversation = session?.conversation ?? null;

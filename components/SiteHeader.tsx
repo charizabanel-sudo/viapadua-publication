@@ -1,3 +1,4 @@
+import AccountLink from "@/components/auth/AccountLink";
 import Link from "next/link";
 import AdminLoginMenu from "@/components/home/AdminLoginMenu";
 import NavbarShell from "@/components/home/NavbarShell";
@@ -21,6 +22,7 @@ export default function SiteHeader() {
           <ServicesLink className="nav-btn btn-signup">
             <i className="fas fa-file-alt" aria-hidden="true" /> Services
           </ServicesLink>
+          <AccountLink />
           <AdminLoginMenu />
         </nav>
       </div>

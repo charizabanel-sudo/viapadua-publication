@@ -37,7 +37,7 @@ function isUniqueViolation(error: unknown, field: string): boolean {
  * transaction holding a per-date advisory lock, so concurrent submissions for the same
  * date are serialized and cannot double-book a slot.
  */
-export async function createBookingRecord(db: Db, input: ValidBooking): Promise<CreatedBooking> {
+export async function createBookingRecord(db: Db, input: ValidBooking, ownership: { userId?: number; guest?: { hash: string; expiresAt: Date }; proof?: { bytes: Uint8Array; mime: string; size: number; sha256: string; filename: string } } = {}): Promise<CreatedBooking> {
   const bookingDate = parseIsoDate(input.date);
   if (!bookingDate) throw new BookingRuleError("bookDate", "Please choose a valid date.");
 
@@ -71,6 +71,9 @@ export async function createBookingRecord(db: Db, input: ValidBooking): Promise<
           const created = await tx.booking.create({
             data: {
               reference,
+              ...(ownership.userId ? { user: { connect: { id: ownership.userId } } } : {}),
+              ...(ownership.guest ? { guestAccess: { create: { credentialHash: ownership.guest.hash, expiresAt: ownership.guest.expiresAt } } } : {}),
+              ...(ownership.proof ? { documents: { create: { kind: "payment_proof", content: new Uint8Array(ownership.proof.bytes), mime: ownership.proof.mime, size: ownership.proof.size, sha256: ownership.proof.sha256, filename: ownership.proof.filename, userId: ownership.userId, guestHash: ownership.guest?.hash } } } : {}),
               requesterName: input.requester.name,
               requesterEmail: input.requester.email,
               requesterPhone: input.requester.phone,
@@ -90,9 +93,10 @@ export async function createBookingRecord(db: Db, input: ValidBooking): Promise<
               details: { serviceCode: input.service.code, ...input.details },
               source: "web",
             },
-            select: { reference: true, service: true, bookingTime: true, fee: true, paymentMethod: true },
+            select: { id: true, reference: true, service: true, bookingTime: true, fee: true, paymentMethod: true },
           });
 
+          if (ownership.proof) await tx.portalAudit.create({ data: { action: "payment_proof_uploaded", targetId: String(created.id), userId: ownership.userId, detail: { sha256: ownership.proof.sha256 } } });
           return {
             reference: created.reference,
             service: created.service,

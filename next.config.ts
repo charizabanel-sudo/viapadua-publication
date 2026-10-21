@@ -2,8 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  experimental: { serverActions: { bodySizeLimit: "4mb" } },
   poweredByHeader: false,
   images: {
+    qualities: [60, 75],
     // Only local images from public/images are optimized.
     localPatterns: [{ pathname: "/images/**" }],
   },

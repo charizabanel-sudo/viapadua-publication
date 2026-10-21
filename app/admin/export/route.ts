@@ -4,15 +4,19 @@ import { recordsWhere } from "@/lib/admin/records";
 import { exportRowsForWhere, getBookingExportRows, getReport, guestExportRows, normalizeReportFilters } from "@/lib/admin/reports";
 import { isBookingStatus } from "@/lib/booking/queries";
 import { todayInParish } from "@/lib/booking/schedule";
-import { getCurrentAdmin } from "@/lib/server/auth";
+import { getAdminForRequest, sessionCookieName } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
 
 export const dynamic = "force-dynamic";
 
 /** CSV exports for Records and Reports. Admin session required; contains guest personal data. */
 export async function GET(request: NextRequest) {
-  const admin = await getCurrentAdmin();
-  if (!admin) return new NextResponse("Unauthorized", { status: 401, headers: { "Cache-Control": "no-store" } });
+  const admin = await getAdminForRequest(request);
+  if (!admin) {
+    // No tokens, email addresses, report filters or guest details enter diagnostics.
+    console.warn("[admin-export] session denied", { cookiePresent: Boolean(request.cookies.get(sessionCookieName())), secureOrigin: request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https" });
+    return new NextResponse("Sign in again on this website to download this report.", { status: 401, headers: { "Cache-Control": "private, no-store", Vary: "Cookie" } });
+  }
 
   const sp = request.nextUrl.searchParams;
   const kind = sp.get("kind");
@@ -36,7 +40,9 @@ export async function GET(request: NextRequest) {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${name}.csv"`,
-      "Cache-Control": "no-store",
+      "Cache-Control": "private, no-store, max-age=0",
+      "Vary": "Cookie",
+      "X-Content-Type-Options": "nosniff",
       "X-Robots-Tag": "noindex",
     },
   });

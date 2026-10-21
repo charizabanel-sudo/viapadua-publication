@@ -22,7 +22,7 @@ export default function AdminLoginMenu() {
             <p>Via Padua Parish · authorized staff only</p>
           </div>
           <LoginForm idPrefix="home-admin-" />
-          <p className="login-card-foot">Parishioners don&apos;t need an account. <ServicesLink>Book a service</ServicesLink>.</p>
+          <p className="login-card-foot">Guest bookings are welcome. <ServicesLink>Book a service</ServicesLink>.</p>
         </div>
       </PublicDialog>
     </>

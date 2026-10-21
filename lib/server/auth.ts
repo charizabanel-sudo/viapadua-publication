@@ -8,8 +8,14 @@ import { isProduction } from "./env";
 import { getUserAgent } from "./request";
 
 /** "__Host-" prefix (HTTPS only) pins the cookie to this host and path "/". */
-function sessionCookieName(): string {
+export function sessionCookieName(): string {
   return isProduction() ? "__Host-vp_admin_session" : "vp_admin_session";
+}
+
+/** Download handlers use their incoming request cookie, with the same session rules as pages. */
+export async function getAdminForRequest(request: { cookies: { get(name: string): { value: string } | undefined } }): Promise<SessionAdmin | null> {
+  const token = request.cookies.get(sessionCookieName())?.value;
+  return token ? findActiveSession(getDb(), token) : null;
 }
 
 export async function startAdminSession(adminId: number): Promise<void> {

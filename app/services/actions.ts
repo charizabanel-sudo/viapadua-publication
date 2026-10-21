@@ -1,5 +1,7 @@
 "use server";
 
+import { getCurrentUser, guestAccess } from "@/lib/server/user-auth";
+import { validateFile } from "@/lib/documents/files";
 import { bucketKey, countEvents, recordEvents } from "@/lib/auth/rate-limit";
 import { BookingRuleError, createBookingRecord, type CreatedBooking } from "@/lib/booking/create";
 import { validateBookingInput, type FieldErrors } from "@/lib/booking/validation";
@@ -40,7 +42,12 @@ export async function submitBooking(formData: FormData): Promise<BookingResult> 
       };
     }
 
-    const booking = await createBookingRecord(db, parsed.data);
+    const user = await getCurrentUser();
+    const guest = user ? undefined : await guestAccess(true);
+    const file = formData.get("paymentProof");
+    let proof;
+    try { if (file instanceof File && file.size) proof = await validateFile(file); } catch (error) { return { status: "error", fieldErrors: {}, formError: error instanceof Error ? error.message : "Invalid payment evidence." }; }
+    const booking = await createBookingRecord(db, parsed.data, { userId: user?.id, guest, proof });
     await recordEvents(db, [ipBucket], true);
     return { status: "success", booking };
   } catch (error) {

@@ -6,6 +6,7 @@ import type { BookingStatus } from "@/lib/generated/prisma/client";
 import { requireAdmin } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
 import StatusButton from "../StatusButton";
+import BookingDetailsDialog from "@/components/admin/BookingDetailsDialog";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -295,7 +296,7 @@ function DetailsModal({ booking: b, closeHref, returnTo }: { booking: BookingDet
   const receipt = b.paymentProof && SAFE_RECEIPT.test(b.paymentProof) ? b.paymentProof : null;
 
   return (
-    <div className="modal open" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
+    <BookingDetailsDialog closeHref={closeHref}>
       <div className="modal-content">
         <div className="modal-header">
           <h2 id="detailsTitle">Booking Details</h2>
@@ -388,6 +389,6 @@ function DetailsModal({ booking: b, closeHref, returnTo }: { booking: BookingDet
           )}
         </div>
       </div>
-    </div>
+    </BookingDetailsDialog>
   );
 }

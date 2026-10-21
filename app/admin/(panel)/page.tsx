@@ -34,8 +34,8 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <header className="page-header">
-        <p className="dash-date">{formatDateLong(data.today)}</p>
+      <header className="page-header dashboard-heading">
+        <div className="dashboard-greeting">
         <h1>
           {greeting(now)}, <span className="gold-text">{admin.name}</span>
         </h1>
@@ -44,6 +44,11 @@ export default async function DashboardPage() {
             ? "No booking requests are waiting for approval."
             : `${data.counts.pending} booking request${data.counts.pending === 1 ? " is" : "s are"} waiting for your approval.`}
         </p>
+        </div>
+        <time className="dashboard-date" dateTime={data.today} aria-label={`${formatDateLong(data.today)}, Asia/Manila`}>
+          <span className="calendar-day">{Number(data.today.slice(8))}</span>
+          <span><strong>{new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", weekday: "long" }).format(now)}</strong><span>{new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", month: "long", year: "numeric" }).format(now)}</span><small>PARISH TIME · MANILA</small></span>
+        </time>
       </header>
 
       <section className="stats-grid" aria-label="Key numbers">
@@ -94,8 +99,9 @@ export default async function DashboardPage() {
                 <p>New guest booking requests will appear here.</p>
               </div>
             ) : (
-              <div className="table-wrap">
-                <table className="data-table">
+              <div className="table-wrap" tabIndex={0} role="region" aria-label="Requests awaiting approval, scroll for all columns">
+                <table className="data-table approval-table">
+                  <colgroup><col className="requester-column" /><col /><col className="date-column" /><col /><col className="action-column" /></colgroup>
                   <thead>
                     <tr>
                       <th scope="col">Requested by</th>
@@ -116,8 +122,8 @@ export default async function DashboardPage() {
                         </td>
                         <td>{p.service}</td>
                         <td>
-                          {formatDateLong(p.date)}
-                          {hasClockTime(p.time) ? ` · ${formatTime12h(p.time)}` : ""}
+                          <span className="approval-date">{new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric" }).format(parseIsoDate(p.date)!)}</span>
+                          {hasClockTime(p.time) && <span className="approval-time">{formatTime12h(p.time)}</span>}
                         </td>
                         <td>
                           <span className={`waiting${p.waitingDays >= 3 ? " late" : ""}`}>

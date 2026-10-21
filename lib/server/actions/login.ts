@@ -50,5 +50,5 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     return { error: "Invalid email or password.", email: parsed.data.email };
   }
 
-  redirect("/admin/bookings");
+  redirect("/admin");
 }
