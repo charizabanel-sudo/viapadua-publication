@@ -857,7 +857,7 @@ try {
   await a.getByRole("button", { name: "Portal menu" }).click();
   await a.getByRole("button", { name: "Log out", exact: true }).click();
   await a.waitForURL(base + "/");
-  for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  for (const viewport of [{ width: 360, height: 740 }, { width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1280, height: 900 }]) {
     const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport, reducedMotion: "reduce" });
     const p = await ctx.newPage();
     p.on("pageerror", (e) => results.errors.push(e.message));
@@ -898,12 +898,96 @@ try {
     await p.locator(".cal-day").first().waitFor();
     await p.screenshot({ path: path.join(out, `calendar-${viewport.width}.png`), fullPage: true });
     assert.equal(await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, "calendar overflow " + viewport.width);
+    // Services workspace opens over the portal without leaving it, and closing restores the same view.
+    const phone = viewport.width < 900;
+    const services = p.getByRole("dialog", { name: "Parish Services" });
+    await p.locator(`.cal-day[data-date="${iso}"]`).click();
+    await p.evaluate(() => window.scrollTo(0, 260));
+    const scrollBefore = await p.evaluate(() => window.scrollY);
+    if (phone) {
+      await p.getByRole("button", { name: "Portal menu" }).click();
+      assert.ok((await p.locator(".portal-sidebar").boundingBox()).width <= 300);
+    } else {
+      const side = await p.locator(".portal-sidebar").boundingBox();
+      assert.ok(side.width >= 220 && side.width <= 240, "sidebar width " + side.width);
+    }
+    await p.getByRole("link", { name: "Book / request a certificate" }).click();
+    await services.waitFor();
+    assert.equal(new URL(p.url()).pathname, "/portal");
+    assert.equal(new URL(p.url()).searchParams.get("tab"), "calendar");
+    assert.equal(new URL(p.url()).searchParams.get("services"), "1");
+    assert.equal(await p.locator(".public-overlay:not([hidden])").count(), 1);
+    assert.equal(await p.evaluate(() => getComputedStyle(document.body).overflow), "hidden");
+    const box = await services.boundingBox();
+    assert.ok(box.x >= 0 && box.x + box.width <= viewport.width + 1, "services card fits " + viewport.width);
+    for (const btn of await services.getByRole("button").all())
+      if (await btn.isVisible()) {
+        const b = await btn.boundingBox();
+        assert.ok(b.height >= 36, "touch target " + (await btn.innerText()) + " " + b.height);
+      }
+    await p.keyboard.press("Escape");
+    await services.waitFor({ state: "hidden" });
+    assert.equal(new URL(p.url()).search, "?tab=calendar");
+    assert.equal(await p.locator(`.cal-day[data-date="${iso}"]`).getAttribute("aria-pressed"), "true");
+    assert.equal(await p.evaluate(() => window.scrollY), scrollBefore);
+    assert.equal(await p.evaluate(() => getComputedStyle(document.body).overflow), "visible");
+    assert.ok(await p.evaluate(() => document.activeElement && document.activeElement !== document.body), "focus returned");
+    await p.getByRole("link", { name: "Book Now" }).click();
+    await services.waitFor();
+    // Unsaved input asks before leaving; Back closes the card and stays in the portal.
+    await services.getByRole("button", { name: "Request Certificate", exact: true }).first().click();
+    await services.locator('[name="requesterName"]').fill("Draft name");
+    p.once("dialog", (d) => d.dismiss());
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(150);
+    assert.ok(await services.isVisible(), "dirty form kept open after cancelling the prompt");
+    const acceptLeave = (d) => d.accept();
+    p.on("dialog", acceptLeave);
+    await p.goBack();
+    await p.goBack();
+    await services.waitFor({ state: "hidden" });
+    p.off("dialog", acceptLeave);
+    assert.equal(new URL(p.url()).pathname, "/portal");
+    assert.equal(await p.locator(`.cal-day[data-date="${iso}"]`).getAttribute("aria-pressed"), "true");
+    if (viewport.width === 1280) {
+      // Authenticated booking and certificate request submitted from inside the portal stay bound to this account.
+      await p.goto(base + "/portal?tab=bookings&services=1&service=mass-intention&step=form");
+      const portalForm = services.locator("form").filter({ has: p.locator('[name="bookFullName"]') });
+      for (const [name, value] of Object.entries({ bookFullName: "Portal overlay booking", bookEmail: "portal-contact@example.invalid", bookContact: "09123456789", bookDate: iso, bookTime: "14:00", intentionPerson: "Portal family" }))
+        await portalForm.locator(`[name="${name}"]`).fill(value);
+      await portalForm.locator('[name="massType"]').selectOption({ index: 1 });
+      await portalForm.getByRole("radio", { name: /Pay at the Church/i }).click();
+      await portalForm.getByRole("button", { name: "Confirm Booking", exact: true }).click();
+      await p.getByText("Booking Request Submitted", { exact: true }).waitFor();
+      assert.equal(new URL(p.url()).pathname, "/portal");
+      const owner = (await pool.query("SELECT b.user_id, u.email FROM bookings b JOIN users u ON u.id=b.user_id WHERE b.requester_name='Portal overlay booking'")).rows[0];
+      assert.equal(owner.email, "browser-a@example.invalid");
+      await services.getByRole("button", { name: /Close/ }).first().click();
+      await services.waitFor({ state: "hidden" });
+      await p.reload();
+      assert.match(await p.locator("main").innerText(), /Mass Intention/);
+      await p.goto(base + "/portal?tab=certificates");
+      await p.getByRole("link", { name: "Book / request a certificate" }).click();
+      await services.getByRole("button", { name: "Request Certificate", exact: true }).first().click();
+      const certForm = services.locator(".portal-form.services-step form");
+      for (const [name, value] of Object.entries({ requesterName: "Portal Requester", email: "portal-req@example.invalid", phone: "09123456789", recipientName: "Portal Child", fatherName: "Father P", motherName: "Mother P", sacramentDate: "2019-02-02", purpose: "School record" }))
+        await certForm.locator(`[name="${name}"]`).fill(value);
+      await certForm.getByRole("button", { name: "Submit request", exact: true }).click();
+      await services.getByRole("status").filter({ hasText: "submitted" }).waitFor();
+      const req = (await pool.query("SELECT u.email FROM certificate_requests r JOIN users u ON u.id=r.user_id WHERE r.requester_name='Portal Requester'")).rows[0];
+      assert.equal(req?.email, "browser-a@example.invalid");
+      assert.equal(new URL(p.url()).pathname, "/portal");
+    }
+    await p.screenshot({ path: path.join(out, `portal-overlay-${viewport.width}.png`) });
     const back = await ctx.request.get(base + "/account/login?next=https://evil.example", { maxRedirects: 0 });
     assert.equal(back.headers().location, "/portal");
     await ctx.close();
   }
   pass(
     "Floating parishioner sign-in: legacy URL redirect, safe return, focus, Escape, inline error keeps email, password visibility toggle keeps value and focus, admin card switch, desktop/mobile calendar without overflow",
+  );
+  pass(
+    "Portal services card at 360/390/768/1280 px: opens over the portal (drawer on phones), keeps tab, selected date, scroll and focus; Escape, Back and the unsaved-input prompt work; account-bound booking and certificate request submitted inside the portal",
   );
   assert.equal(
     (await userA.request.get(base + "/api/chat?account=1")).status(),

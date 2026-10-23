@@ -13,6 +13,9 @@ import { normalizeMonth, shiftMonth } from "@/lib/admin/calendar";
 import { getPortalCalendar } from "@/lib/portal/calendar";
 import { formatDateLong, formatTime12h, toIsoDate, todayInParish } from "@/lib/booking/schedule";
 import { linkGuestChatAction } from "@/lib/server/actions/portal";
+import { getGcashPayee } from "@/lib/server/payment";
+import ServicesBooking from "@/components/services/ServicesBooking";
+import { ServicesLink } from "@/components/public/PublicOverlayProvider";
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 30;
 const docHref = (id: string) => `/api/documents/${id}`;
@@ -143,9 +146,7 @@ export default async function PortalPage({
             {!bookings.length && (
               <div className="portal-empty">
                 <p>No bookings are linked to this account yet.</p>
-                <Link className="btn btn-primary" href="/?services=1">
-                  Book a service
-                </Link>
+                <ServicesLink className="btn btn-primary">Book a service</ServicesLink>
               </div>
             )}
             {pager}
@@ -211,9 +212,7 @@ export default async function PortalPage({
             {!requests.length && (
               <div className="portal-empty">
                 <p>No certificate requests yet.</p>
-                <Link className="btn btn-primary" href="/?services=1">
-                  Request a certificate
-                </Link>
+                <ServicesLink className="btn btn-primary">Request a certificate</ServicesLink>
               </div>
             )}
           </>
@@ -274,6 +273,8 @@ export default async function PortalPage({
           />
         )}
       </PortalShell>
+      {/* Same booking/certificate workspace as the homepage, opened as a floating card over the portal. */}
+      <ServicesBooking gcashPayee={getGcashPayee()} signedIn />
     </>
   );
 }

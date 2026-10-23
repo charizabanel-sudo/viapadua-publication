@@ -1,32 +1,33 @@
 /* Parishioner portal frame, calendar, sign-in roles and download fallbacks. */
 
 /* ===== Portal frame ===== */
-.portal-shell { display: grid; grid-template-columns: 264px minmax(0, 1fr); gap: 0; width: min(1320px, 100%); margin: 0 auto; min-height: calc(100dvh - 82px); }
+.portal-shell { --portal-sidebar: 228px; display: grid; grid-template-columns: var(--portal-sidebar) minmax(0, 1fr); gap: 0; width: min(1360px, 100%); margin: 0 auto; min-height: calc(100dvh - 82px); }
 .portal-mobilebar, .portal-drawer-backdrop { display: none; }
 .portal-sidebar {
   position: sticky; top: 82px; align-self: start; display: flex; flex-direction: column; gap: 18px;
-  height: calc(100dvh - 82px); padding: 24px 16px; overflow-y: auto; overscroll-behavior: contain;
+  height: calc(100dvh - 82px); padding: 20px 12px; overflow-y: auto; overscroll-behavior: contain;
   background: linear-gradient(165deg, var(--brand), var(--brand-deep)); color: var(--surface);
   --scrollbar-track: var(--brand-deep); --scrollbar-thumb: var(--scrollbar-thumb-on-dark);
 }
-.portal-user { display: flex; align-items: center; gap: 12px; padding: 4px 8px 16px; border-bottom: 1px solid rgb(255 255 255 / 12%); min-width: 0; }
-.portal-avatar { display: grid; place-items: center; flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%; background: var(--logo-accent); color: var(--logo-ink); font-weight: 700; }
+.portal-user { display: flex; align-items: center; gap: 10px; padding: 2px 6px 14px; border-bottom: 1px solid rgb(255 255 255 / 12%); min-width: 0; }
+.portal-avatar { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--logo-accent); color: var(--logo-ink); font-weight: 700; font-size: 15px; }
 .portal-user-text { display: grid; min-width: 0; }
-.portal-user-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.portal-user-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .portal-user-text small { color: var(--on-brand-muted); font-size: 12px; }
 .portal-nav { list-style: none; display: grid; gap: 4px; margin: 0; padding: 0; }
-.portal-nav-item { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 10px 14px; border-radius: var(--radius-control); color: var(--on-brand-muted); text-decoration: none; font-size: 15px; font-weight: 500; transition: background-color .15s ease, color .15s ease; }
-.portal-nav-item i { width: 20px; text-align: center; }
+.portal-nav-item { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 9px 12px; border-radius: var(--radius-control); color: var(--on-brand-muted); text-decoration: none; font-size: 14px; line-height: 1.3; font-weight: 500; transition: background-color .15s ease, color .15s ease; }
+.portal-nav-item i { width: 18px; flex-shrink: 0; text-align: center; }
 .portal-nav-item:hover { background: rgb(255 255 255 / 9%); color: var(--surface); }
 .portal-nav-item.active { background: var(--surface); color: var(--brand); font-weight: 600; }
 .portal-sidebar :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.portal-sidebar-foot { display: grid; gap: 10px; margin-top: auto; padding-top: 16px; border-top: 1px solid rgb(255 255 255 / 12%); }
-.portal-book, .portal-logout { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; padding: 10px 14px; border-radius: var(--radius-control); font: 600 14px/1.3 var(--font-body); text-decoration: none; cursor: pointer; }
+.portal-book-wrap { display: contents; }
+.portal-sidebar-foot { display: grid; gap: 8px; margin-top: auto; padding-top: 14px; border-top: 1px solid rgb(255 255 255 / 12%); }
+.portal-book, .portal-logout { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; padding: 9px 10px; border-radius: var(--radius-control); font: 600 13px/1.3 var(--font-body); text-align: center; text-decoration: none; cursor: pointer; }
 .portal-book { background: var(--accent); color: var(--brand); border: 1px solid var(--accent); }
 .portal-book:hover { background: var(--surface); }
 .portal-logout { background: transparent; color: var(--surface); border: 1px solid rgb(var(--accent-rgb) / 45%); }
 .portal-logout:hover { background: rgb(255 255 255 / 9%); }
-.portal-main.portal-content { width: 100%; max-width: none; margin: 0; padding: 28px clamp(16px, 3vw, 40px) 110px; }
+.portal-main.portal-content { width: 100%; max-width: none; min-width: 0; margin: 0; padding: 26px clamp(16px, 2.6vw, 36px) 110px; }
 .portal-page-head { margin-bottom: 8px; }
 .portal-page-head h1 { color: var(--brand); font-family: var(--font-heading); font-weight: 600; }
 .portal-page-head p { color: var(--muted); font-size: 15px; }
@@ -39,7 +40,8 @@
 
 @media (max-width: 900px) {
   .portal-shell { display: block; min-height: 0; }
-  .portal-mobilebar { position: sticky; top: 0; z-index: 90; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  /* Sticks just below the (sticky) site navbar so the menu stays reachable without covering content. */
+  .portal-mobilebar { position: sticky; top: var(--portal-bar-top, 0px); z-index: 90; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
   .portal-menu-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-soft); color: var(--brand); font: 600 14px/1.2 var(--font-body); cursor: pointer; }
   .portal-mobile-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 600; font-size: 15px; }
   .portal-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 1150; width: min(300px, 86vw); height: 100dvh; top: 0; transform: translateX(-105%); visibility: hidden; transition: transform .22s ease, visibility 0s linear .22s; box-shadow: var(--shadow-float); }

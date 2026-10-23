@@ -48,9 +48,11 @@ type Props = {
     name: string | null;
     qrPath: string | null;
   };
+  /** Rendered inside the signed-in portal: submissions are saved to the account. */
+  signedIn?: boolean;
 };
 
-export default function ServicesBooking({ gcashPayee }: Props) {
+export default function ServicesBooking({ gcashPayee, signedIn = false }: Props) {
   const [openReqs, setOpenReqs] = useState<ReadonlySet<string>>(new Set());
   const {
     active,
@@ -255,7 +257,11 @@ export default function ServicesBooking({ gcashPayee }: Props) {
       <header className="services-workspace-head">
         <div>
           <h2 id="services-workspace-title">Parish Services</h2>
-          <p>View requirements and book as a guest. No account is needed.</p>
+          <p>
+            {signedIn
+              ? "View requirements, book a service or request a certificate. Requests are saved to your account."
+              : "View requirements and book as a guest. No account is needed."}
+          </p>
         </div>
         <button
           type="button"

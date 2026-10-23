@@ -14,6 +14,19 @@ export default function PortalShell({ tab, userName, logout, children }: { tab: 
   const drawerId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+
+  // The phone menu bar sticks directly below the site navbar, whose height changes when it wraps.
+  useEffect(() => {
+    const nav = document.querySelector<HTMLElement>("header.navbar");
+    const shell = shellRef.current;
+    if (!nav || !shell) return;
+    const sync = () => shell.style.setProperty("--portal-bar-top", `${nav.offsetHeight}px`);
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, []);
   const current = PORTAL_NAV.find((n) => n.tab === tab)!;
 
   useEffect(() => {
@@ -50,11 +63,12 @@ export default function PortalShell({ tab, userName, logout, children }: { tab: 
   }, [open]);
 
   return (
-    <div className={`portal-shell${open ? " drawer-open" : ""}`}>
+    <div ref={shellRef} className={`portal-shell${open ? " drawer-open" : ""}`}>
       <div className="portal-mobilebar">
         <button
           ref={toggleRef}
           type="button"
+          data-overlay-return
           className="portal-menu-btn"
           aria-expanded={open}
           aria-controls={drawerId}
@@ -109,9 +123,12 @@ export default function PortalShell({ tab, userName, logout, children }: { tab: 
           </ul>
         </nav>
         <div className="portal-sidebar-foot">
+          {/* Opening the services card closes the phone drawer first. */}
+          <span className="portal-book-wrap" onClickCapture={() => setOpen(false)}>
           <ServicesLink className="portal-book">
             <i className="fas fa-calendar-plus" aria-hidden="true" /> Book / request a certificate
           </ServicesLink>
+          </span>
           {logout}
         </div>
       </aside>

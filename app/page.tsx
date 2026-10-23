@@ -7,6 +7,7 @@ import { AboutProvider, AboutSection, LearnMoreButton } from "@/components/About
 import { ServicesLink } from "@/components/public/PublicOverlayProvider";
 import ServicesBooking from "@/components/services/ServicesBooking";
 import { CONTACTS, DEVELOPERS, SITE } from "@/lib/site";
+import { getGcashPayee } from "@/lib/server/payment";
 
 export default function HomePage() {
   return (
@@ -106,7 +107,7 @@ export default function HomePage() {
           </div>
         </section>
       </main>
-      <ServicesBooking gcashPayee={{ number: process.env.PARISH_GCASH_NUMBER?.trim() || null, name: process.env.PARISH_GCASH_NAME?.trim() || null, qrPath: /^\/images\/[a-zA-Z0-9/_.-]+$/.test(process.env.PARISH_PAYMENT_QR_PATH ?? "") ? process.env.PARISH_PAYMENT_QR_PATH! : null }} />
+      <ServicesBooking gcashPayee={getGcashPayee()} />
     </div>
   );
 }

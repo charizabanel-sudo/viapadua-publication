@@ -11,6 +11,9 @@ type OverlayContext = OverlayState & {
   requestOpen: (kind: PublicOverlay, options?: { service?: string; step?: string }) => boolean;
   requestClose: () => boolean;
   registerGuard: (kind: PublicOverlay, guard: () => boolean) => () => void;
+  /** Dialogs mounted on the current page; links open those in place instead of navigating home. */
+  registerDialog: (kind: PublicOverlay) => () => void;
+  hasDialog: (kind: PublicOverlay) => boolean;
   navigateServices: (state: Partial<ServicesState>) => void;
 };
 
@@ -32,6 +35,7 @@ export function PublicOverlayProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<OverlayState>(emptyState);
   const current = useRef(state);
   const guards = useRef(new Map<PublicOverlay, () => boolean>());
+  const dialogs = useRef(new Map<PublicOverlay, number>());
   const previousUrl = useRef("");
   const update = useCallback((next: OverlayState) => { current.current = next; setState(next); }, []);
   const mayLeave = useCallback(() => {
@@ -110,7 +114,13 @@ export function PublicOverlayProvider({ children }: { children: ReactNode }) {
     return () => { if (guards.current.get(kind) === guard) guards.current.delete(kind); };
   }, []);
 
-  return <Context.Provider value={{ ...state, requestOpen, requestClose, registerGuard, navigateServices }}><Suspense fallback={null}><LocationObserver onChange={syncLocation} /></Suspense>{children}</Context.Provider>;
+  const registerDialog = useCallback((kind: PublicOverlay) => {
+    dialogs.current.set(kind, (dialogs.current.get(kind) ?? 0) + 1);
+    return () => { dialogs.current.set(kind, (dialogs.current.get(kind) ?? 1) - 1); };
+  }, []);
+  const hasDialog = useCallback((kind: PublicOverlay) => (dialogs.current.get(kind) ?? 0) > 0, []);
+
+  return <Context.Provider value={{ ...state, requestOpen, requestClose, registerGuard, registerDialog, hasDialog, navigateServices }}><Suspense fallback={null}><LocationObserver onChange={syncLocation} /></Suspense>{children}</Context.Provider>;
 }
 
 function LocationObserver({ onChange }: { onChange: () => void }) {
@@ -127,11 +137,12 @@ export function usePublicOverlay() {
 }
 
 export function ServicesLink({ service, step, children, ...props }: { service?: string; step?: "certificate"; children: ReactNode; className?: string; "aria-label"?: string }) {
-  const { requestOpen } = usePublicOverlay();
+  const { requestOpen, hasDialog } = usePublicOverlay();
   const href = `/?services=1${service ? `&service=${encodeURIComponent(service)}&step=${step ?? (service === "blessing" ? "blessing" : "form")}` : ""}`;
   function click(event: MouseEvent<HTMLAnchorElement>) {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    if (window.location.pathname !== "/") return;
+    // Pages that mount the services workspace (homepage, portal) open it in place, keeping the current view.
+    if (!hasDialog("services")) return;
     event.preventDefault();
     requestOpen("services", service === undefined ? undefined : { service, step });
   }
@@ -141,11 +152,12 @@ export function ServicesLink({ service, step, children, ...props }: { service?: 
 const focusable = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 export function PublicDialog({ kind, labelledBy, className = "", children }: { kind: PublicOverlay; labelledBy: string; className?: string; children: ReactNode }) {
-  const { active, requestClose } = usePublicOverlay();
+  const { active, requestClose, registerDialog } = usePublicOverlay();
   const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const visible = active === kind;
   useEffect(() => { const timer = window.setTimeout(() => setMounted(true), 0); return () => window.clearTimeout(timer); }, []);
+  useEffect(() => registerDialog(kind), [registerDialog, kind]);
   useEffect(() => {
     if (!visible || !mounted) return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -167,7 +179,9 @@ export function PublicDialog({ kind, labelledBy, className = "", children }: { k
     return () => {
       cancelAnimationFrame(frame);
       document.removeEventListener("keydown", keydown);
-      if (previousFocus?.isConnected) previousFocus.focus();
+      // An opener inside a now-hidden drawer cannot take focus back; use the page's designated return target.
+      const visible = previousFocus?.isConnected && previousFocus.getClientRects().length > 0 && getComputedStyle(previousFocus).visibility !== "hidden";
+      (visible ? previousFocus : document.querySelector<HTMLElement>("[data-overlay-return]"))?.focus({ preventScroll: true });
     };
   }, [visible, mounted, requestClose, kind]);
   if (!mounted) return null;
