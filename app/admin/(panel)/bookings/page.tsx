@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { detailLabel, formatPeso } from "@/lib/booking/catalog";
+import { isSampleReference } from "@/lib/booking/samples";
 import { getBookingDetail, isBookingStatus, listBookings, type BookingDetail, type BookingListItem } from "@/lib/booking/queries";
 import { formatDateLong, formatTime12h, hasClockTime, toIsoDate } from "@/lib/booking/schedule";
 import type { BookingStatus } from "@/lib/generated/prisma/client";
@@ -68,17 +69,19 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
   const status = isBookingStatus(statusParam) ? statusParam : undefined;
   const page = Number.parseInt(param(sp, "page"), 10) || 1;
   const viewId = Number.parseInt(param(sp, "view"), 10);
+  const samples = param(sp, "samples") === "1";
   const notice = noticeMessage(param(sp, "notice"));
 
   const db = getDb();
   const [list, detail] = await Promise.all([
-    listBookings(db, { q, status, page }),
+    listBookings(db, { q, status, page, ...(samples ? { samples: "only" as const } : {}) }),
     Number.isInteger(viewId) && viewId > 0 ? getBookingDetail(db, viewId) : Promise.resolve(null),
   ]);
 
   const baseParams = new URLSearchParams();
   if (q) baseParams.set("q", q);
   if (status) baseParams.set("status", status);
+  if (samples) baseParams.set("samples", "1");
   if (list.page > 1) baseParams.set("page", String(list.page));
   const href = (changes: Record<string, string | null>) => {
     const p = new URLSearchParams(baseParams);
@@ -98,6 +101,17 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
         <p>Review, confirm, or cancel bookings submitted by parishioners</p>
       </header>
 
+      <nav className="sample-toggle" aria-label="Booking set">
+        {samples ? (
+          <>
+            <span className="sample-badge">Sample/Demo</span> Fictional bookings for demonstrations. They are excluded from reports, exports and dashboard totals.{" "}
+            <Link href="/admin/bookings">Back to real bookings</Link>
+          </>
+        ) : (
+          <Link href="/admin/bookings?samples=1">View Sample/Demo bookings</Link>
+        )}
+      </nav>
+
       {notice && (
         <div className={`notice ${notice.kind}`} role="status">
           <i className={`fas ${notice.kind === "success" ? "fa-check-circle" : "fa-exclamation-circle"}`} aria-hidden="true" />
@@ -107,6 +121,7 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
 
       <section className="filter-card">
         <form action="/admin/bookings" method="get" role="search">
+          {samples && <input type="hidden" name="samples" value="1" />}
           <div className="search-wrapper">
             <span className="search-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
@@ -147,6 +162,7 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
 
       <section className="payments-container">
         <h2 className="payments-title">
+          {samples ? "Sample/Demo " : ""}
           {status ? `${STATUS_LABEL[status]} Bookings` : "All Bookings"} ({list.total})
         </h2>
 
@@ -247,7 +263,7 @@ function BookingCard({ booking: b, viewHref, returnTo }: { booking: BookingListI
         <div className="payment-info">
           <div>
             <div className="payment-info-title">Reference:</div>
-            <div className="payment-info-text">{b.reference}</div>
+            <div className="payment-info-text">{b.reference}{isSampleReference(b.reference) && <> <span className="sample-badge">Sample/Demo</span></>}</div>
           </div>
           <div>
             <div className="payment-info-title">Payment:</div>

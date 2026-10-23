@@ -22,7 +22,8 @@
     "admin:rename": "tsx scripts/rename-admin.ts",
     "legacy:static": "node app.js",
     "test:browser": "node tests/browser/verify.mjs",
-    "users:audit": "tsx scripts/audit-users.ts"
+    "users:audit": "tsx scripts/audit-users.ts",
+    "samples:seed": "tsx scripts/seed-samples.ts"
   },
   "dependencies": {
     "@fontsource/eb-garamond": "^5.3.0",

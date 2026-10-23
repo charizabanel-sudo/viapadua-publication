@@ -151,3 +151,13 @@
 .file-action:hover { background: var(--surface-soft); border-color: var(--brand); }
 .file-error { flex-basis: 100%; color: var(--danger); font-size: 14px; font-weight: 600; }
 @media print { .portal-sidebar, .portal-mobilebar, .file-actions { display: none !important; } .portal-shell { display: block; } }
+
+/* ===== Submission confirmation and Sample/Demo labels ===== */
+.request-confirmation { display: flex; gap: 12px; align-items: flex-start; margin: 16px 0; padding: 14px 16px; border: 1px solid #a7d7bd; border-left: 4px solid var(--success); border-radius: 12px; background: #eef8f2; color: var(--ink); font-size: 15px; outline: none; }
+.request-confirmation > i { margin-top: 3px; color: var(--success); font-size: 20px; }
+.request-confirmation p { margin: 6px 0 0 !important; }
+.request-confirmation:focus-visible { box-shadow: var(--focus-ring); }
+.services-step form .form-alert { margin: 4px 0 12px; }
+.sample-toggle { margin: 0 0 16px; font-size: 14px; color: var(--muted); }
+.sample-toggle a { color: var(--brand); font-weight: 600; }
+.sample-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #fff4d6; color: #7a4b00; border: 1px solid #f0d58a; font-size: 11px; font-weight: 700; letter-spacing: .02em; vertical-align: middle; }

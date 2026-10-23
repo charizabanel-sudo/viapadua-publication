@@ -2,6 +2,7 @@
 import FileDownload from "@/components/files/FileDownload";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { certificateTypes } from "@/lib/certificates/requests";
+import { newRequestId, statusMessage, submitJson, UNCERTAIN_MESSAGE } from "@/lib/client/submit";
 type Progress = {
   id: string;
   reference: string;
@@ -24,7 +25,10 @@ export default function CertificateRequestForm({
 }) {
   const [type, setType] = useState(initialType),
     [busy, setBusy] = useState(false),
-    [notice, setNotice] = useState("");
+    [error, setError] = useState(""),
+    [saved, setSaved] = useState<{ reference: string; status: string } | null>(null);
+  const busyRef = useRef(false);
+  const confirmRef = useRef<HTMLDivElement>(null);
   const [rows, setRows] = useState<Progress[]>([]);
   const requestId = useRef("");
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -55,41 +59,48 @@ export default function CertificateRequestForm({
       clearTimeout(timer);
     };
   }, [visible]);
+  async function refreshRows() {
+    try {
+      const r = await fetch("/api/certificate-requests", { cache: "no-store" });
+      if (r.ok) setRows((await r.json()).requests);
+    } catch {
+      /* The list refreshes again on its next poll. */
+    }
+  }
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (busy) return;
+    if (busyRef.current) return;
+    const formElement = e.currentTarget;
+    busyRef.current = true;
     setBusy(true);
-    setNotice("");
-    requestId.current ||= crypto.randomUUID();
+    setError("");
+    setSaved(null);
+    // Kept across retries so an uncertain first attempt is never saved twice.
+    requestId.current ||= newRequestId();
     try {
-      const form = Object.fromEntries(new FormData(e.currentTarget));
-      const response = await fetch("/api/certificate-requests", {
-        method: "POST",
+      const form = Object.fromEntries(new FormData(formElement));
+      const outcome = await submitJson<{ ok?: boolean; reference?: string; status?: string; error?: string }>("/api/certificate-requests", {
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          type,
-          clientRequestId: requestId.current,
-        }),
+        body: JSON.stringify({ ...form, type, clientRequestId: requestId.current }),
       });
-      const data = await response.json();
-      if (!response.ok) throw Error(data.error);
-      setNotice(
-        `Request ${data.reference} submitted. Status: ${data.status}. Staff must verify the parish record before releasing a certificate.`,
-      );
+      if (outcome.kind === "uncertain") {
+        setError(UNCERTAIN_MESSAGE);
+        return;
+      }
+      const data = outcome.data;
+      if (outcome.status >= 400 || !data?.reference) {
+        setError(data?.error ?? statusMessage(outcome.status));
+        return;
+      }
+      // Confirmation only after the server reports the saved record.
+      setSaved({ reference: data.reference, status: data.status ?? "pending" });
       requestId.current = "";
+      formElement.reset();
       onDirtyChange(false);
-      const refresh = await fetch("/api/certificate-requests", {
-        cache: "no-store",
-      });
-      if (refresh.ok) setRows((await refresh.json()).requests);
-    } catch (error) {
-      setNotice(
-        error instanceof Error
-          ? error.message
-          : "Request failed. Retry safely.",
-      );
+      requestAnimationFrame(() => confirmRef.current?.focus());
+      void refreshRows();
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
@@ -159,11 +170,30 @@ export default function CertificateRequestForm({
             />
           </label>
         ))}
-        <button className="btn btn-primary" disabled={busy}>
+        {error && (
+          <p className="form-alert" role="alert">
+            {error}
+          </p>
+        )}
+        <button className="btn btn-primary" disabled={busy} aria-busy={busy}>
           {busy ? "Submitting…" : "Submit request"}
         </button>
       </form>
-      <p role="status">{notice}</p>
+      <div role="status" aria-live="polite">
+        {saved && (
+          <div className="request-confirmation" ref={confirmRef} tabIndex={-1}>
+            <i className="fas fa-circle-check" aria-hidden="true" />
+            <div>
+              <strong>Your request has been submitted to the parish office.</strong>
+              <p>
+                Reference <b>{saved.reference}</b> · Status:{" "}
+                <span className="status-pill">{saved.status.charAt(0).toUpperCase() + saved.status.slice(1)}</span>
+              </p>
+              <p>Staff verify the parish record before a certificate is released. The form is cleared for another request.</p>
+            </div>
+          </div>
+        )}
+      </div>
       <h3>Requested Certificates</h3>
       <p>
         Guest requests are available in this browser for 30 days. An account

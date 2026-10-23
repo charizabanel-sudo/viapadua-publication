@@ -1,5 +1,6 @@
 import type { Db } from "@/lib/db/client";
 import type { BookingStatus, Prisma } from "@/lib/generated/prisma/client";
+import { EXCLUDE_SAMPLES, ONLY_SAMPLES } from "@/lib/booking/samples";
 
 export const BOOKING_STATUSES: readonly BookingStatus[] = ["pending", "confirmed", "completed", "cancelled"];
 export const ADMIN_PAGE_SIZE = 20;
@@ -8,7 +9,8 @@ export function isBookingStatus(value: unknown): value is BookingStatus {
   return typeof value === "string" && (BOOKING_STATUSES as readonly string[]).includes(value);
 }
 
-export type BookingFilters = { q?: string; status?: BookingStatus; page?: number };
+/** `samples: "only"` lists the fictional Sample/Demo bookings, which are hidden otherwise. */
+export type BookingFilters = { q?: string; status?: BookingStatus; page?: number; samples?: "only" };
 
 const listSelect = {
   id: true,
@@ -33,6 +35,7 @@ export type BookingListItem = Prisma.BookingGetPayload<{ select: typeof listSele
 export async function listBookings(db: Db, filters: BookingFilters): Promise<{ items: BookingListItem[]; total: number; page: number; pages: number }> {
   const q = filters.q?.trim().slice(0, 100);
   const where: Prisma.BookingWhereInput = {
+    ...(filters.samples === "only" ? ONLY_SAMPLES : EXCLUDE_SAMPLES),
     ...(filters.status ? { status: filters.status } : {}),
     ...(q
       ? {

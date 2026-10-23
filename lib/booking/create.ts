@@ -26,6 +26,30 @@ export type CreatedBooking = {
 
 const ACTIVE_STATUSES = ["pending", "confirmed"] as const;
 
+export type BookingOwnership = { userId?: number; guest?: { hash: string; expiresAt: Date }; proof?: { bytes: Uint8Array; mime: string; size: number; sha256: string; filename: string }; clientRequestId?: string };
+
+type TxClient = Pick<Db, "booking">;
+
+/** A retry carries the same client request id; the already-saved booking is returned to its owner instead of a duplicate. */
+export async function findBookingReplay(db: TxClient, clientRequestId: string | undefined, owner: { userId?: number; guestHash?: string }): Promise<CreatedBooking | null | "foreign"> {
+  if (!clientRequestId) return null;
+  const row = await db.booking.findFirst({
+    where: { details: { path: ["clientRequestId"], equals: clientRequestId }, createdAt: { gte: new Date(Date.now() - 7 * 86_400_000) } },
+    select: { reference: true, service: true, bookingDate: true, bookingTime: true, fee: true, paymentMethod: true, userId: true, guestAccess: { select: { credentialHash: true } } },
+  });
+  if (!row) return null;
+  const owned = row.userId !== null ? row.userId === owner.userId : Boolean(owner.guestHash && row.guestAccess?.credentialHash === owner.guestHash);
+  if (!owned) return "foreign";
+  return {
+    reference: row.reference,
+    service: row.service,
+    date: row.bookingDate.toISOString().slice(0, 10),
+    time: row.bookingTime ?? "",
+    fee: Number(row.fee ?? 0),
+    paymentMethod: row.paymentMethod === "gcash" ? "gcash" : "church",
+  };
+}
+
 function isUniqueViolation(error: unknown, field: string): boolean {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") return false;
   const target = JSON.stringify(error.meta ?? {});
@@ -37,7 +61,7 @@ function isUniqueViolation(error: unknown, field: string): boolean {
  * transaction holding a per-date advisory lock, so concurrent submissions for the same
  * date are serialized and cannot double-book a slot.
  */
-export async function createBookingRecord(db: Db, input: ValidBooking, ownership: { userId?: number; guest?: { hash: string; expiresAt: Date }; proof?: { bytes: Uint8Array; mime: string; size: number; sha256: string; filename: string } } = {}): Promise<CreatedBooking> {
+export async function createBookingRecord(db: Db, input: ValidBooking, ownership: BookingOwnership = {}): Promise<CreatedBooking> {
   const bookingDate = parseIsoDate(input.date);
   if (!bookingDate) throw new BookingRuleError("bookDate", "Please choose a valid date.");
 
@@ -46,6 +70,13 @@ export async function createBookingRecord(db: Db, input: ValidBooking, ownership
     try {
       return await db.$transaction(
         async (tx) => {
+          // Serialize retries of the same submission, then re-check: a saved request is returned, never duplicated.
+          if (ownership.clientRequestId) {
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`vp-booking-request:${ownership.clientRequestId}`}))`;
+            const replay = await findBookingReplay(tx, ownership.clientRequestId, { userId: ownership.userId, guestHash: ownership.guest?.hash });
+            if (replay === "foreign") throw new BookingRuleError("bookDate", "This submission could not be confirmed. Please reload the page and try again.");
+            if (replay) return replay;
+          }
           await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`vp-booking-date:${input.date}`}))`;
 
           const blocked = await tx.blockedDate.findUnique({ where: { date: bookingDate }, select: { id: true } });
@@ -90,7 +121,7 @@ export async function createBookingRecord(db: Db, input: ValidBooking, ownership
               gcashNumber: input.gcash?.number ?? null,
               gcashReference: input.gcash?.reference ?? null,
               notes: input.notes || null,
-              details: { serviceCode: input.service.code, ...input.details },
+              details: { serviceCode: input.service.code, ...input.details, ...(ownership.clientRequestId ? { clientRequestId: ownership.clientRequestId } : {}) },
               source: "web",
             },
             select: { id: true, reference: true, service: true, bookingTime: true, fee: true, paymentMethod: true },

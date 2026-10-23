@@ -1,5 +1,6 @@
 import type { Db } from "@/lib/db/client";
 import type { BookingStatus, Prisma } from "@/lib/generated/prisma/client";
+import { EXCLUDE_SAMPLES, SAMPLE_REFERENCE_PREFIX } from "@/lib/booking/samples";
 import { formatTime12h, parseIsoDate, toIsoDate, todayInParish, addDays } from "@/lib/booking/schedule";
 
 export type ReportFilters = { from: string; to: string; service: string };
@@ -16,6 +17,7 @@ export function normalizeReportFilters(raw: { from?: string; to?: string; servic
 
 function bookingWhere(f: ReportFilters): Prisma.BookingWhereInput {
   return {
+    ...EXCLUDE_SAMPLES,
     bookingDate: { gte: parseIsoDate(f.from)!, lt: parseIsoDate(addDays(f.to, 1))! },
     ...(f.service !== "all" ? { service: f.service } : {}),
   };
@@ -52,6 +54,7 @@ export async function getReport(db: Db, f: ReportFilters) {
     db.$queryRaw<{ c: number }[]>`
       SELECT COUNT(DISTINCT lower(requester_email))::int AS c FROM bookings
       WHERE booking_date >= ${from} AND booking_date < ${toExclusive}
+        AND reference NOT LIKE ${`${SAMPLE_REFERENCE_PREFIX}%`}
         AND (${serviceFilter}::text IS NULL OR service = ${serviceFilter})`,
     db.adminEvent.groupBy({ by: ["type"], where: { eventDate: { gte: from, lt: toExclusive } }, _count: { _all: true } }),
     db.$queryRaw<
@@ -78,11 +81,12 @@ export async function getReport(db: Db, f: ReportFilters) {
              MAX(booking_date) AS last_booking
       FROM bookings
       WHERE booking_date >= ${from} AND booking_date < ${toExclusive}
+        AND reference NOT LIKE ${`${SAMPLE_REFERENCE_PREFIX}%`}
         AND (${serviceFilter}::text IS NULL OR service = ${serviceFilter})
       GROUP BY lower(requester_email)
       ORDER BY COUNT(*) DESC, MAX(booking_date) DESC
       LIMIT 500`,
-    db.booking.findMany({ distinct: ["service"], select: { service: true }, orderBy: { service: "asc" } }),
+    db.booking.findMany({ where: EXCLUDE_SAMPLES, distinct: ["service"], select: { service: true }, orderBy: { service: "asc" } }),
   ]);
 
   const statusCounts: Record<BookingStatus, number> = { pending: 0, confirmed: 0, completed: 0, cancelled: 0 };

@@ -853,6 +853,94 @@ try {
   pass(
     "360/390 px services, account portal and admin scanner have no horizontal page overflow",
   );
+  // Submissions: failure keeps values and controls; an uncertain outcome is never reported as failure,
+  // and the retry returns the saved record instead of a duplicate.
+  const CONFIRM = "Your request has been submitted to the parish office.";
+  await gp.goto(base + "/?services=1&service=mass-intention&step=form");
+  const retryForm = gp.locator("form").filter({ has: gp.locator('[name="bookFullName"]') });
+  for (const [name, value] of Object.entries({ bookFullName: "Retry guest booking", bookEmail: "retry-guest@example.invalid", bookContact: "09123456789", bookDate: iso, bookTime: "16:00", intentionPerson: "Retry family" }))
+    await retryForm.locator(`[name="${name}"]`).fill(value);
+  await retryForm.locator('[name="massType"]').selectOption({ index: 1 });
+  await retryForm.getByRole("radio", { name: /Pay at the Church/i }).click();
+  const confirmBtn = retryForm.getByRole("button", { name: "Confirm Booking", exact: true });
+  await gp.route("**/api/bookings", (route) => route.fulfill({ status: 500, contentType: "text/html", body: "<html><body>Internal Server Error</body></html>" }));
+  await confirmBtn.click();
+  await gp.getByText("could not save your request", { exact: false }).waitFor();
+  assert.equal(await confirmBtn.isEnabled(), true);
+  assert.equal(await retryForm.locator('[name="bookFullName"]').inputValue(), "Retry guest booking");
+  const countRetry = async () => Number((await pool.query("SELECT count(*) FROM bookings WHERE requester_name='Retry guest booking'")).rows[0].count);
+  assert.equal(await countRetry(), 0);
+  await gp.unroute("**/api/bookings");
+  // The server saves the booking but the response is lost on the way back.
+  await gp.route("**/api/bookings", async (route) => { await route.fetch(); await route.abort("connectionreset"); });
+  await confirmBtn.click();
+  await gp.getByText("It may already be saved", { exact: false }).waitFor();
+  assert.equal(await confirmBtn.isEnabled(), true);
+  assert.equal(await countRetry(), 1);
+  await gp.unroute("**/api/bookings");
+  await confirmBtn.click();
+  await gp.getByText(CONFIRM).waitFor();
+  const savedRef = (await pool.query("SELECT reference, status FROM bookings WHERE requester_name='Retry guest booking'")).rows[0];
+  assert.equal(savedRef.status, "pending");
+  assert.match(await gp.locator(".reference-value").innerText(), new RegExp(savedRef.reference));
+  assert.equal(await countRetry(), 1, "retry did not duplicate");
+  await b.goto(base + "/portal?tab=certificates");
+  await b.getByRole("link", { name: "Book / request a certificate" }).click();
+  const bServices = b.getByRole("dialog", { name: "Parish Services" });
+  await bServices.getByRole("button", { name: "Request Certificate", exact: true }).first().click();
+  const bCert = bServices.locator(".portal-form.services-step form");
+  for (const [name, value] of Object.entries({ requesterName: "Retry Cert Requester", email: "retry-cert@example.invalid", phone: "09123456789", recipientName: "Retry Child", fatherName: "Father R", motherName: "Mother R", sacramentDate: "2018-03-03", purpose: "Retry check" }))
+    await bCert.locator(`[name="${name}"]`).fill(value);
+  const certBtn = bCert.getByRole("button", { name: "Submit request", exact: true });
+  const postOnly = (handler) => (route) => (route.request().method() === "POST" ? handler(route) : route.continue());
+  await b.route("**/api/certificate-requests", postOnly((route) => route.fulfill({ status: 503, contentType: "text/html", body: "<html>Service Unavailable</html>" })));
+  await certBtn.click();
+  await bCert.getByRole("alert").filter({ hasText: "could not save your request" }).waitFor();
+  assert.equal(await certBtn.isEnabled(), true);
+  assert.equal(await bCert.locator('[name="recipientName"]').inputValue(), "Retry Child");
+  await b.unroute("**/api/certificate-requests");
+  await b.route("**/api/certificate-requests", postOnly(async (route) => { await route.fetch(); await route.abort("connectionreset"); }));
+  await certBtn.click();
+  await bCert.getByRole("alert").filter({ hasText: "It may already be saved" }).waitFor();
+  await b.unroute("**/api/certificate-requests");
+  await certBtn.click();
+  const certConfirm = bServices.locator(".request-confirmation");
+  await certConfirm.waitFor();
+  assert.match(await certConfirm.innerText(), /Your request has been submitted to the parish office\.[\s\S]*Status:\s*Pending/);
+  const certRows = (await pool.query("SELECT r.reference, u.email FROM certificate_requests r JOIN users u ON u.id=r.user_id WHERE r.requester_name='Retry Cert Requester'")).rows;
+  assert.equal(certRows.length, 1, "certificate retry did not duplicate");
+  assert.equal(certRows[0].email, "browser-b@example.invalid");
+  assert.match(await certConfirm.innerText(), new RegExp(certRows[0].reference));
+  assert.equal(await bCert.locator('[name="recipientName"]').inputValue(), "", "form cleared after confirmed success");
+  await bServices.getByRole("button", { name: "Close services" }).click();
+  await b.goto(base + "/portal?tab=certificates");
+  assert.match(await b.locator("main").innerText(), new RegExp(certRows[0].reference));
+  await admin.goto(base + "/admin/requests");
+  assert.match(await admin.locator("main").innerText(), new RegExp(certRows[0].reference));
+  await admin.goto(base + "/admin/bookings?q=" + savedRef.reference);
+  assert.match(await admin.locator("main").innerText(), new RegExp(savedRef.reference));
+  pass(
+    "Homepage booking and portal certificate request: failed responses keep values and re-enable controls; lost responses show an uncertain (not failed) message; retry returns the saved Pending record once with the confirmation text; visible to admin and the owning user",
+  );
+  // Sample/Demo bookings: seeded with the real CLI against this isolated database only.
+  const seedRun = spawn(process.execPath, ["node_modules/tsx/dist/cli.mjs", "scripts/seed-samples.ts", "--apply"], { env: { ...process.env, DATABASE_URL: testUrl }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+  let seedLog = "";
+  seedRun.stdout.on("data", (d) => (seedLog += d));
+  seedRun.stderr.on("data", (d) => (seedLog += d));
+  assert.equal(await new Promise((r) => seedRun.on("close", r)), 0, seedLog);
+  assert.match(seedLog, /Created 10 sample bookings/);
+  await admin.goto(base + "/admin/bookings");
+  assert.doesNotMatch(await admin.locator("main").innerText(), /VP-SAMPLE-/);
+  await admin.getByRole("link", { name: "View Sample/Demo bookings" }).click();
+  await admin.waitForURL(/samples=1/);
+  const sampleText = await admin.locator("main").innerText();
+  assert.match(sampleText, /Sample\/Demo All Bookings \(10\)/);
+  assert.match(sampleText, /VP-SAMPLE-0001/);
+  const reportCsv = await staff.request.get(base + "/admin/export?kind=bookings&from=2020-01-01&to=2026-12-31");
+  assert.doesNotMatch(await reportCsv.text(), /VP-SAMPLE-/);
+  await admin.goto(base + "/admin/reports?from=2020-01-01&to=2026-12-31");
+  assert.doesNotMatch(await admin.locator("main").innerText(), /Sample:/);
+  pass("Sample/Demo seed applies 10 labelled fictional bookings once; hidden from default admin list, reports and CSV; visible via the explicit Sample/Demo view");
   await a.goto(base + "/portal");
   await a.getByRole("button", { name: "Portal menu" }).click();
   await a.getByRole("button", { name: "Log out", exact: true }).click();

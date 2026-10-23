@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EXCLUDE_SAMPLES } from "@/lib/booking/samples";
 import type { Db } from "@/lib/db/client";
 import type { BookingStatus, Prisma } from "@/lib/generated/prisma/client";
 
@@ -49,6 +50,7 @@ export type RecordItem = Prisma.BookingGetPayload<{ select: typeof recordSelect 
 export function recordsWhere(opts: { q?: string; status?: BookingStatus }): Prisma.BookingWhereInput {
   const q = opts.q?.trim().slice(0, 100);
   return {
+    ...EXCLUDE_SAMPLES,
     ...(opts.status ? { status: opts.status } : {}),
     ...(q
       ? {

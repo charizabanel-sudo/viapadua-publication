@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Db } from "@/lib/db/client";
+import { EXCLUDE_SAMPLES } from "@/lib/booking/samples";
 export async function findDocumentReference(db: Db, reference: string) {
   if (!z.uuid().safeParse(reference).success) return null;
   const [document, booking, request] = await Promise.all([
@@ -41,6 +42,8 @@ export async function suggestBookings(db: Db, text: string, query = "") {
   if (!references.length && !dates.length && q.length < 3) return [];
   const rows = await db.booking.findMany({
     where: {
+      // Scans are matched to real parish records only, never to Sample/Demo bookings.
+      ...EXCLUDE_SAMPLES,
       OR: [
         ...(references.length
           ? [{ reference: { in: references, mode: "insensitive" as const } }]

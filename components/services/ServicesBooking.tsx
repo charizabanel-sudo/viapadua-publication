@@ -14,7 +14,8 @@ import {
 } from "@/components/public/PublicOverlayProvider";
 import PaymentQr from "./PaymentQr";
 import CertificateRequestForm from "./CertificateRequestForm";
-import { submitBooking } from "@/app/services/actions";
+import type { BookingResult } from "@/lib/booking/submit";
+import { newRequestId, statusMessage, submitJson, UNCERTAIN_MESSAGE } from "@/lib/client/submit";
 import type { CreatedBooking } from "@/lib/booking/create";
 import {
   BLESSING_OPTIONS,
@@ -78,6 +79,9 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
   const bookingFormRef = useRef<HTMLFormElement>(null);
   const gcashFirstFieldRef = useRef<HTMLInputElement>(null);
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  /** Same id for every retry of one submission; cleared once the parish system confirms it. */
+  const requestIdRef = useRef("");
+  const sendingRef = useRef(false);
   const rawStep = servicesState.step;
   const certificateType = rawStep === "certificate" && SERVICE_CARDS.some((card) => card.slug === servicesState.service && card.certificate) ? servicesState.service : "";
   let step: Step = "catalog";
@@ -150,6 +154,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
     setFormError(null);
     setCreated(null);
     setCopied(false);
+    requestIdRef.current = "";
     setFormVersion((version) => version + 1);
     setDirty(false);
     navigateServices({ service: selected.code, step: "form" });
@@ -178,26 +183,36 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
   }
 
   function send(formData: FormData, fromGcash: boolean) {
+    if (sendingRef.current) return;
+    sendingRef.current = true;
+    requestIdRef.current ||= newRequestId();
+    formData.set("clientRequestId", requestIdRef.current);
     setFormError(null);
     startTransition(async () => {
       try {
-        const result = await submitBooking(formData);
-        if (result.status === "success") {
+        const outcome = await submitJson<BookingResult>("/api/bookings", { body: formData });
+        if (outcome.kind === "uncertain") {
+          // Keep the request id: pressing submit again returns the saved booking instead of a duplicate.
+          setFormError(UNCERTAIN_MESSAGE);
+          return;
+        }
+        const result = outcome.data;
+        if (result?.status === "success") {
+          requestIdRef.current = "";
           setCreated(result.booking);
           setDirty(false);
+          setErrors({});
           setStep("success");
           return;
         }
-        setErrors(result.fieldErrors);
-        setFormError(result.formError ?? "Please check your booking details.");
-        const keys = Object.keys(result.fieldErrors);
-        const stayOnGcash =
-          fromGcash && keys.every((k) => GCASH_FIELDS.includes(k));
+        const fieldErrors = result?.fieldErrors ?? {};
+        setErrors(fieldErrors);
+        setFormError(result?.formError ?? (result ? "Please check your booking details." : statusMessage(outcome.status)));
+        const keys = Object.keys(fieldErrors);
+        const stayOnGcash = fromGcash && keys.every((k) => GCASH_FIELDS.includes(k));
         setStep(stayOnGcash ? "gcash" : "form");
-      } catch {
-        setFormError(
-          "We couldn't reach the server. Please check your connection and try again.",
-        );
+      } finally {
+        sendingRef.current = false;
       }
     });
   }
@@ -905,8 +920,9 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
                 >
                   Booking Request Submitted
                 </h3>
-                <p className="modal-subtitle">
-                  The parish office will review your request and contact you.
+                <p className="modal-subtitle" role="status">
+                  <strong>Your request has been submitted to the parish office.</strong>{" "}
+                  Status: Pending. The parish office will review your request and contact you.
                 </p>
                 <div className="reference-box">
                   <div className="reference-label">Your reference number</div>

@@ -1,5 +1,6 @@
 import type { Db } from "@/lib/db/client";
 import { addDays, parseIsoDate, toIsoDate, todayInParish } from "@/lib/booking/schedule";
+import { EXCLUDE_SAMPLES, SAMPLE_REFERENCE_PREFIX } from "@/lib/booking/samples";
 
 export type ScheduleItem = {
   kind: "booking" | "event";
@@ -26,19 +27,19 @@ export async function getDashboardData(db: Db, now: Date = new Date()) {
 
   const [pendingCount, bookingsMonth, eventsNext30, unpaidActive, pending, byService, monthlyRows, upcomingBookings, upcomingEvents] =
     await Promise.all([
-      db.booking.count({ where: { status: "pending" } }),
-      db.booking.count({ where: { bookingDate: { gte: monthStart, lt: nextMonth }, status: notCancelled } }),
+      db.booking.count({ where: { ...EXCLUDE_SAMPLES, status: "pending" } }),
+      db.booking.count({ where: { ...EXCLUDE_SAMPLES, bookingDate: { gte: monthStart, lt: nextMonth }, status: notCancelled } }),
       db.adminEvent.count({ where: { eventDate: { gte: today, lt: in30 } } }),
-      db.booking.count({ where: { status: { in: ["pending", "confirmed"] }, paymentStatus: "unpaid" } }),
+      db.booking.count({ where: { ...EXCLUDE_SAMPLES, status: { in: ["pending", "confirmed"] }, paymentStatus: "unpaid" } }),
       db.booking.findMany({
-        where: { status: "pending" },
+        where: { ...EXCLUDE_SAMPLES, status: "pending" },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take: 6,
         select: { id: true, reference: true, requesterName: true, service: true, bookingDate: true, bookingTime: true, createdAt: true },
       }),
       db.booking.groupBy({
         by: ["service"],
-        where: { bookingDate: { gte: yearStart, lt: nextYear }, status: notCancelled },
+        where: { ...EXCLUDE_SAMPLES, bookingDate: { gte: yearStart, lt: nextYear }, status: notCancelled },
         _count: { _all: true },
         orderBy: { _count: { service: "desc" } },
       }),
@@ -46,9 +47,10 @@ export async function getDashboardData(db: Db, now: Date = new Date()) {
         SELECT to_char(booking_date, 'YYYY-MM') AS ym, COUNT(*)::int AS c
         FROM bookings
         WHERE booking_date >= ${yearStart} AND booking_date < ${nextYear} AND status <> 'cancelled'
+          AND reference NOT LIKE ${`${SAMPLE_REFERENCE_PREFIX}%`}
         GROUP BY 1`,
       db.booking.findMany({
-        where: { bookingDate: { gte: today, lt: in14 }, status: { in: ["pending", "confirmed"] } },
+        where: { ...EXCLUDE_SAMPLES, bookingDate: { gte: today, lt: in14 }, status: { in: ["pending", "confirmed"] } },
         select: { id: true, service: true, requesterName: true, bookingDate: true, bookingTime: true, status: true },
         orderBy: [{ bookingDate: "asc" }, { bookingTime: "asc" }],
         take: 30,

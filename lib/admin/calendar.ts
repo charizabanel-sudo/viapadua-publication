@@ -2,6 +2,7 @@ import type { Db } from "@/lib/db/client";
 import type { BookingStatus } from "@/lib/generated/prisma/enums";
 import { parseIsoDate, toIsoDate, todayInParish } from "@/lib/booking/schedule";
 import { listEventsBetween, type EventRow } from "./events";
+import { EXCLUDE_SAMPLES } from "@/lib/booking/samples";
 
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
@@ -37,7 +38,7 @@ export async function getMonthData(db: Db, month: string): Promise<MonthData> {
   const [events, bookings, blocked] = await Promise.all([
     listEventsBetween(db, from, to),
     db.booking.findMany({
-      where: { bookingDate: range, status: { in: ["pending", "confirmed", "completed"] } },
+      where: { ...EXCLUDE_SAMPLES, bookingDate: range, status: { in: ["pending", "confirmed", "completed"] } },
       select: { id: true, reference: true, service: true, bookingDate: true, bookingTime: true, status: true },
       orderBy: [{ bookingDate: "asc" }, { bookingTime: "asc" }],
     }),
