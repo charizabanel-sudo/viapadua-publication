@@ -100,6 +100,9 @@ export async function POST(request: Request) {
         throw Error("Verify and process the parish record before release.");
       if (kind === "receipt" && (!booking || booking.paymentStatus !== "paid"))
         throw Error("Verify payment before releasing an official receipt.");
+      // One active receipt per payment: a generated parish receipt already covers this booking.
+      if (kind === "receipt" && booking && (await tx.paymentReceipt.count({ where: { bookingId: booking.id } })))
+        throw Error("This payment already has a parish payment receipt.");
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`upload:${actor.adminId ? "a" + actor.adminId : actor.userId ? "u" + actor.userId : actor.guestHash}`}))`;
       // Bound private storage abuse per owner/network credential and retain immutable payment evidence.
       const scope = actor.adminId

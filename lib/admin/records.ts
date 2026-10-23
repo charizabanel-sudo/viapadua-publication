@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EXCLUDE_SAMPLES } from "@/lib/booking/samples";
+import { recordVerifiedPayment, type Verification } from "@/lib/payments/receipts";
 import type { Db } from "@/lib/db/client";
 import type { BookingStatus, Prisma } from "@/lib/generated/prisma/client";
 
@@ -23,6 +24,7 @@ export function certificateKind(service: string): CertificateKind {
 
 const recordSelect = {
   documents: { select: { id: true, kind: true, filename: true, released: true } },
+  paymentReceipt: { select: { status: true, receiptNumber: true, documentId: true } },
   id: true,
   reference: true,
   requesterName: true,
@@ -80,27 +82,11 @@ export async function listRecords(db: Db, opts: { q?: string; status?: BookingSt
   return { items, total, page, pages };
 }
 
-export type PaymentResult =
-  | { ok: true; reference: string }
-  | { ok: false; reason: "not_found" | "already_paid" | "cancelled" };
+export type { PaymentResult } from "@/lib/payments/receipts";
 
-/** Manual payment verification by an admin (never automatic). Row-locked to avoid double updates. */
-export async function markBookingPaid(db: Db, params: { bookingId: number; adminId: number }): Promise<PaymentResult> {
-  return db.$transaction(async (tx) => {
-    const rows = await tx.$queryRaw<{ reference: string; status: string; payment_status: string }[]>`
-      SELECT reference, status::text AS status, payment_status::text AS payment_status
-      FROM bookings WHERE id = ${params.bookingId} FOR UPDATE`;
-    const row = rows[0];
-    if (!row) return { ok: false, reason: "not_found" } as const;
-    if (row.status === "cancelled") return { ok: false, reason: "cancelled" } as const;
-    if (row.payment_status === "paid") return { ok: false, reason: "already_paid" } as const;
-    await tx.booking.update({
-      where: { id: params.bookingId },
-      data: { paymentStatus: "paid", paidAt: new Date(), paidById: params.adminId },
-    });
-    await tx.portalAudit.create({ data: { action: "payment_verified", targetId: String(params.bookingId), adminId: params.adminId, detail: { from: "unpaid", to: "paid" } } });
-    return { ok: true, reference: row.reference } as const;
-  });
+/** Manual payment verification by an admin (never automatic); also creates the booking's receipt record. */
+export function markBookingPaid(db: Db, params: { bookingId: number; adminId: number; verification: Verification | null }) {
+  return recordVerifiedPayment(db, params);
 }
 
 const CERT_TEXT_KEYS = [

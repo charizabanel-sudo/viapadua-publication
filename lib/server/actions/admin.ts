@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { blockDate, unblockDate } from "@/lib/admin/calendar";
 import { createEvent, deleteEvent, updateEvent, validateEventInput } from "@/lib/admin/events";
 import { markBookingPaid, saveBookingCertificate, validateCertificate } from "@/lib/admin/records";
+import { issueReceipt, issueReceiptForPaidBooking, PAYMENT_MESSAGES } from "@/lib/payments/receipts";
 import { formatDateLong } from "@/lib/booking/schedule";
 import { changeBookingStatus } from "@/lib/booking/status";
 import { requireAdmin } from "@/lib/server/auth";
@@ -113,22 +114,52 @@ export async function completeBookingAction(formData: FormData): Promise<ActionR
   }
 }
 
+const VERIFICATIONS = ["gcash_account_checked", "cash_received"] as const;
+
+function receiptMessage(reference: string, issued: Awaited<ReturnType<typeof issueReceipt>>): ActionResult {
+  return issued.status === "issued"
+    ? { ok: true, message: `Payment for ${reference} recorded as paid. Receipt ${issued.receiptNumber} issued.` }
+    : { ok: false, message: `Payment for ${reference} is recorded as paid, but receipt ${issued.receiptNumber} could not be generated yet. Use "Retry receipt".` };
+}
+
+/** Admin attests the payment (GCash account checked / cash received); the receipt follows automatically. */
 export async function markPaidAction(formData: FormData): Promise<ActionResult> {
   const admin = await requireAdmin();
   const bookingId = positiveInt(formData.get("bookingId"));
   if (!bookingId) return { ok: false, message: "Invalid booking." };
+  const raw = formData.get("verification");
+  const verification = VERIFICATIONS.find((v) => v === raw) ?? null;
   try {
-    const result = await markBookingPaid(getDb(), { bookingId, adminId: admin.id });
+    const db = getDb();
+    const result = await markBookingPaid(db, { bookingId, adminId: admin.id, verification });
+    if (!result.ok) {
+      refreshAdmin();
+      return { ok: false, message: PAYMENT_MESSAGES[result.reason] };
+    }
+    const issued = await issueReceipt(db, result.receiptId, admin.id);
     refreshAdmin();
-    if (result.ok) return { ok: true, message: `Payment for ${result.reference} recorded as paid.` };
-    const messages = {
-      not_found: "Booking not found.",
-      already_paid: "This booking is already marked as paid.",
-      cancelled: "Cancelled bookings can't be marked as paid.",
-    } as const;
-    return { ok: false, message: messages[result.reason] };
+    return receiptMessage(result.reference, issued);
   } catch (error) {
     return failure(error, "The payment couldn't be recorded.");
+  }
+}
+
+/** Retries a pending receipt, or explicitly issues one for a booking already paid with complete records. */
+export async function receiptAction(formData: FormData): Promise<ActionResult> {
+  const admin = await requireAdmin();
+  const bookingId = positiveInt(formData.get("bookingId"));
+  if (!bookingId) return { ok: false, message: "Invalid booking." };
+  try {
+    const db = getDb();
+    const result = await issueReceiptForPaidBooking(db, { bookingId, adminId: admin.id });
+    if (!result.ok) return { ok: false, message: PAYMENT_MESSAGES[result.reason] };
+    const issued = await issueReceipt(db, result.receiptId, admin.id);
+    refreshAdmin();
+    return issued.status === "issued"
+      ? { ok: true, message: `Receipt ${issued.receiptNumber} is available.` }
+      : { ok: false, message: `Receipt ${issued.receiptNumber} could not be generated. Please retry in a moment.` };
+  } catch (error) {
+    return failure(error, "The receipt couldn't be generated.");
   }
 }
 

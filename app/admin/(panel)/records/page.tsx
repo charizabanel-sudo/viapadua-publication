@@ -8,7 +8,8 @@ import { formatPeso } from "@/lib/booking/catalog";
 import { isBookingStatus } from "@/lib/booking/queries";
 import { formatDateLong, formatTime12h, toIsoDate } from "@/lib/booking/schedule";
 import { listRecords, needsCertificate, type RecordItem } from "@/lib/admin/records";
-import { completeBookingAction, markPaidAction } from "@/lib/server/actions/admin";
+import { completeBookingAction, markPaidAction, receiptAction } from "@/lib/server/actions/admin";
+import { documentLabel } from "@/lib/payments/labels";
 import { requireAdmin } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
 
@@ -171,15 +172,34 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
                       </ActionButton>
                     )}
                     {r.status === "pending" && <span className="hint-text">Confirm in Bookings before completing.</span>}
-                    {r.paymentStatus === "unpaid" && r.status !== "cancelled" && (
+                    {r.paymentStatus === "unpaid" && r.status !== "cancelled" && r.paymentMethod && (
                       <ActionButton
                         action={markPaidAction}
-                        fields={{ bookingId: r.id }}
-                        confirm={`Record payment for ${r.reference} as PAID?\n\nOnly do this after verifying the payment${r.paymentMethod === "gcash" ? " in the parish GCash account" : " at the parish office"}.`}
+                        fields={{ bookingId: r.id, verification: r.paymentMethod === "gcash" ? "gcash_account_checked" : "cash_received" }}
+                        confirm={
+                          r.paymentMethod === "gcash"
+                            ? `Record GCash payment for ${r.reference} as PAID?\n\nOnly continue if you found this payment in the parish GCash account. A submitted reference or screenshot alone is not proof.\n\nA parish payment receipt will be issued automatically.`
+                            : `Record payment for ${r.reference} as PAID?\n\nOnly continue if the parish office has received the money.\n\nA parish payment receipt will be issued automatically.`
+                        }
                         className="btn btn-gold btn-sm"
                         pendingLabel="Saving…"
                       >
-                        <i className="fas fa-peso-sign" aria-hidden="true" /> Mark as Paid
+                        <i className="fas fa-peso-sign" aria-hidden="true" /> {r.paymentMethod === "gcash" ? "Verify GCash & Mark Paid" : "Money Received · Mark Paid"}
+                      </ActionButton>
+                    )}
+                    {r.paymentStatus === "paid" && r.paymentReceipt?.status === "issued" && r.paymentReceipt.documentId && (
+                      <FileDownload className="btn btn-outline btn-sm" href={`/api/documents/${r.paymentReceipt.documentId}`} previewHref={`/api/documents/${r.paymentReceipt.documentId}?preview=1`}>
+                        <i className="fas fa-receipt" aria-hidden="true" /> Receipt {r.paymentReceipt.receiptNumber}
+                      </FileDownload>
+                    )}
+                    {r.paymentStatus === "paid" && r.paymentReceipt?.status === "pending" && (
+                      <ActionButton action={receiptAction} fields={{ bookingId: r.id }} className="btn btn-outline btn-sm" pendingLabel="Generating…">
+                        <i className="fas fa-rotate-right" aria-hidden="true" /> Retry receipt {r.paymentReceipt.receiptNumber}
+                      </ActionButton>
+                    )}
+                    {r.paymentStatus === "paid" && !r.paymentReceipt && r.paidAt && r.fee !== null && r.paymentMethod && (
+                      <ActionButton action={receiptAction} fields={{ bookingId: r.id }} confirm={`Issue a parish payment receipt for ${r.reference} using the recorded payment date and amount?`} className="btn btn-outline btn-sm" pendingLabel="Generating…">
+                        <i className="fas fa-receipt" aria-hidden="true" /> Issue receipt
                       </ActionButton>
                     )}
                     {certEligible && (
@@ -201,7 +221,7 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
                       <i className="fas fa-eye" aria-hidden="true" /> View booking
                     </Link>
                   </div>
-                  <details className="portal-card"><summary>Private documents and receipts</summary>{r.paymentProof && <p><FileDownload href={`/api/bookings/${r.id}/legacy-proof`} previewHref={`/api/bookings/${r.id}/legacy-proof?preview=1`}>Historical payment evidence</FileDownload></p>}{r.documents.map(d => <p key={d.id}><FileDownload href={`/api/documents/${d.id}`} previewHref={`/api/documents/${d.id}?preview=1`}>{d.kind}: {d.filename}</FileDownload></p>)}<UploadDocument bookingId={r.id} kind="payment_proof" />{r.paymentStatus === "paid" && <UploadDocument bookingId={r.id} kind="receipt" />}{certEligible && <UploadDocument bookingId={r.id} kind="certificate" />}</details>
+                  <details className="portal-card"><summary>Private documents and receipts</summary>{r.paymentProof && <p><FileDownload href={`/api/bookings/${r.id}/legacy-proof`} previewHref={`/api/bookings/${r.id}/legacy-proof?preview=1`}>Historical payment evidence</FileDownload></p>}{r.documents.map(d => <p key={d.id}><FileDownload href={`/api/documents/${d.id}`} previewHref={`/api/documents/${d.id}?preview=1`}>{documentLabel(d.kind)}: {d.filename}</FileDownload></p>)}<UploadDocument bookingId={r.id} kind="payment_proof" />{r.paymentStatus === "paid" && !r.paymentReceipt && <UploadDocument bookingId={r.id} kind="receipt" />}{certEligible && <UploadDocument bookingId={r.id} kind="certificate" />}</details>
                 </article>
               );
             })}

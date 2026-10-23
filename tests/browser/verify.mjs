@@ -69,6 +69,12 @@ async function tinyPdf() {
   });
   return Buffer.from(await d.save());
 }
+async function pdfText(bytes) {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes), useSystemFonts: false, verbosity: 0 }).promise;
+  const content = await (await doc.getPage(1)).getTextContent();
+  return content.items.map((i) => i.str ?? "").join(" ");
+}
 const shiftIso = (month) => {
   const [y, m] = month.split("-").map(Number);
   return new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
@@ -594,7 +600,7 @@ try {
   await admin.goto(base + "/admin/records?q=" + accountBooking.reference);
   admin.once("dialog", (d) => d.accept());
   await admin
-    .getByRole("button", { name: "Mark as Paid", exact: true })
+    .getByRole("button", { name: "Money Received · Mark Paid", exact: true })
     .click();
   await wait(
     async () =>
@@ -605,30 +611,38 @@ try {
       ).rows[0].payment_status === "paid",
     "manual payment verification",
   );
-  const receipt = await staff.request.post(base + "/api/documents", {
+  await wait(
+    async () => (await pool.query("SELECT status FROM payment_receipts WHERE booking_id=$1", [accountBooking.id])).rows[0]?.status === "issued",
+    "automatic church receipt",
+  );
+  const churchReceipt = (await pool.query("SELECT receipt_number, document_id FROM payment_receipts WHERE booking_id=$1", [accountBooking.id])).rows[0];
+  // A generated receipt is the one active receipt: a manual upload for the same payment is refused.
+  const duplicateUpload = await staff.request.post(base + "/api/documents", {
     headers: { Origin: base },
-    multipart: {
-      kind: "receipt",
-      verified: "true",
-      bookingId: String(accountBooking.id),
-      file: {
-        name: "official-receipt.pdf",
-        mimeType: "application/pdf",
-        buffer: docBytes,
-      },
-    },
+    multipart: { kind: "receipt", verified: "true", bookingId: String(accountBooking.id), file: { name: "official-receipt.pdf", mimeType: "application/pdf", buffer: docBytes } },
   });
-  assert.equal(receipt.status(), 200);
+  assert.equal(duplicateUpload.status(), 400);
+  await admin.reload();
+  await admin.getByRole("link", { name: new RegExp("Receipt " + churchReceipt.receipt_number) }).waitFor();
   await a.goto(base + "/portal?tab=receipts");
   const receiptDownload = a.waitForEvent("download");
   await a
-    .getByRole("link", { name: "Download official receipt", exact: true })
+    .getByRole("link", { name: "Download parish payment receipt " + churchReceipt.receipt_number, exact: true })
     .click();
   const receiptPath = path.join(out, "receipt.pdf");
   await (await receiptDownload).saveAs(receiptPath);
-  assert.deepEqual(fs.readFileSync(receiptPath), docBytes);
+  const receiptBytes = fs.readFileSync(receiptPath);
+  assert.equal(receiptBytes.subarray(0, 5).toString(), "%PDF-");
+  const receiptText = await pdfText(receiptBytes);
+  for (const expected of ["PARISH PAYMENT RECEIPT", churchReceipt.receipt_number, accountBooking.reference, "Account A booking", "Mass Intention", "Paid at the church", "PHP"])
+    assert.ok(receiptText.includes(expected), "receipt PDF contains " + expected);
+  await a.goto(base + "/portal?tab=bookings");
+  assert.match(await a.locator("main").innerText(), /Payment proof \(uploaded by payer, not a receipt\)/);
+  assert.match(await a.locator("main").innerText(), /Parish payment receipt/);
+  await a.goto(base + "/portal?tab=receipts");
+  await a.getByRole("link", { name: "Download parish payment receipt " + churchReceipt.receipt_number, exact: true }).click();
   await a.getByRole("button", { name: "Open", exact: true }).waitFor();
-  const receiptId = (await pool.query("SELECT id FROM private_documents WHERE kind='receipt' LIMIT 1")).rows[0].id;
+  const receiptId = churchReceipt.document_id;
   assert.equal((await userB.request.get(base + "/api/documents/" + receiptId)).status(), 404);
   const signedOut = await browser.newContext({ ignoreHTTPSErrors: true });
   const anonymous = await signedOut.request.get(base + "/api/documents/" + receiptId);
@@ -639,11 +653,30 @@ try {
   assert.equal(anonymousCsv.status(), 401);
   assert.equal(anonymousCsv.headers()["content-disposition"], undefined);
   await signedOut.close();
+  const gcashBooking = (await pool.query("SELECT id, reference, payment_status FROM bookings WHERE requester_name='Guest GCash booking'")).rows[0];
+  assert.equal(gcashBooking.payment_status, "unpaid");
+  assert.equal(Number((await pool.query("SELECT count(*) FROM payment_receipts WHERE booking_id=$1", [gcashBooking.id])).rows[0].count), 0);
+  await admin.goto(base + "/admin/records?q=" + gcashBooking.reference);
+  admin.once("dialog", (d) => {
+    assert.match(d.message(), /parish GCash account/);
+    d.accept();
+  });
+  await admin.getByRole("button", { name: "Verify GCash & Mark Paid", exact: true }).click();
+  await wait(async () => (await pool.query("SELECT status FROM payment_receipts WHERE booking_id=$1", [gcashBooking.id])).rows[0]?.status === "issued", "GCash receipt");
+  const gcashReceipt = (await pool.query("SELECT receipt_number, document_id FROM payment_receipts WHERE booking_id=$1", [gcashBooking.id])).rows[0];
+  const guestGet = await guest.request.get(base + "/api/documents/" + gcashReceipt.document_id);
+  assert.equal(guestGet.status(), 200);
+  assert.match(guestGet.headers()["content-disposition"], new RegExp(gcashReceipt.receipt_number));
+  const gcashText = await pdfText(await guestGet.body());
+  assert.ok(gcashText.includes("TESTUNVERIFIED123") && gcashText.includes("GCash"), gcashText);
+  assert.equal((await userA.request.get(base + "/api/documents/" + gcashReceipt.document_id)).status(), 404);
+  assert.equal((await otherGuest.request.get(base + "/api/documents/" + gcashReceipt.document_id)).status(), 401);
+  assert.notEqual(gcashReceipt.receipt_number, churchReceipt.receipt_number);
   const preview = await userA.request.get(base + "/api/documents/" + receiptId + "?preview=1");
   assert.match(preview.headers()["content-disposition"], /^inline;/);
   assert.doesNotMatch(preview.headers()["content-security-policy"], /sandbox/);
   pass(
-    "Proof remains unpaid until admin review; official receipt release is gated, persistent, and ownership protected",
+    "Proof remains unpaid until admin review; 'Money Received' issues one parish receipt PDF automatically (manual duplicate refused); owner downloads it from Receipts with correct contents; payer proof labelled separately; other users refused",
   );
   await pool.query(
     "INSERT INTO admin_events(title,event_date,is_public) VALUES('Public parish gathering',$1,true),('PRIVATE STAFF MEETING',$1,false)",

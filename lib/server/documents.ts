@@ -24,7 +24,7 @@ export async function canReadDocument(actor: Actor, id: string) {
   });
   if (!d) return false;
   if (actor.adminId) return true;
-  if (["certificate", "receipt"].includes(d.kind) && !d.released) return false;
+  if (["certificate", "receipt", "payment_receipt"].includes(d.kind) && !d.released) return false;
   if (d.kind === "certificate" && d.request && d.request.status !== "released")
     return false;
   if (d.booking)

@@ -161,3 +161,4 @@
 .sample-toggle { margin: 0 0 16px; font-size: 14px; color: var(--muted); }
 .sample-toggle a { color: var(--brand); font-weight: 600; }
 .sample-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #fff4d6; color: #7a4b00; border: 1px solid #f0d58a; font-size: 11px; font-weight: 700; letter-spacing: .02em; vertical-align: middle; }
+.receipt-pending { padding: 10px 12px; border-radius: 10px; background: var(--surface-soft); color: var(--brand); font-size: 14px; font-weight: 600; }

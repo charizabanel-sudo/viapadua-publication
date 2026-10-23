@@ -14,6 +14,7 @@ import { getPortalCalendar } from "@/lib/portal/calendar";
 import { formatDateLong, formatTime12h, toIsoDate, todayInParish } from "@/lib/booking/schedule";
 import { linkGuestChatAction } from "@/lib/server/actions/portal";
 import { getGcashPayee } from "@/lib/server/payment";
+import { documentLabel } from "@/lib/payments/labels";
 import ServicesBooking from "@/components/services/ServicesBooking";
 import { ServicesLink } from "@/components/public/PublicOverlayProvider";
 export const dynamic = "force-dynamic";
@@ -44,6 +45,7 @@ export default async function PortalPage({
             documents: {
               select: { id: true, kind: true, released: true, filename: true },
             },
+            paymentReceipt: { select: { status: true, receiptNumber: true } },
           },
         })
       : [],
@@ -137,10 +139,13 @@ export default async function PortalPage({
                   .map((d) => (
                     <p key={d.id}>
                       <FileDownload href={docHref(d.id)} previewHref={`${docHref(d.id)}?preview=1`}>
-                        {d.kind === "payment_proof" ? "Payment evidence" : d.kind}: {d.filename}
+                        {documentLabel(d.kind)}: {d.filename}
                       </FileDownload>
                     </p>
                   ))}
+                {b.paymentReceipt?.status === "pending" && (
+                  <p className="receipt-pending">Payment verified. Your parish payment receipt {b.paymentReceipt.receiptNumber} is being prepared.</p>
+                )}
               </article>
             ))}
             {!bookings.length && (
@@ -156,11 +161,11 @@ export default async function PortalPage({
         {tab === "receipts" && (
           <>
             <p>
-              Official receipts appear only when the parish office uploads and
-              releases them. Payment evidence is not an official receipt.
+              Parish payment receipts are issued automatically after the parish
+              office verifies your payment. Payment proof you upload is not a receipt.
             </p>
             {bookings.map((b) => {
-              const receipts = b.documents.filter((d) => d.kind === "receipt" && d.released);
+              const receipts = b.documents.filter((d) => (d.kind === "receipt" || d.kind === "payment_receipt") && d.released);
               return (
                 <article key={b.id} className="portal-card">
                   <h2 className="portal-card-title">
@@ -170,12 +175,15 @@ export default async function PortalPage({
                     receipts.map((d) => (
                       <p key={d.id}>
                         <FileDownload href={docHref(d.id)} previewHref={`${docHref(d.id)}?preview=1`}>
-                          <i className="fas fa-download" aria-hidden="true" /> Download official receipt
+                          <i className="fas fa-download" aria-hidden="true" />{" "}
+                          {d.kind === "payment_receipt" ? `Download parish payment receipt ${b.paymentReceipt?.receiptNumber ?? ""}`.trim() : "Download official receipt"}
                         </FileDownload>
                       </p>
                     ))
+                  ) : b.paymentReceipt?.status === "pending" ? (
+                    <p className="receipt-pending">Payment verified. Receipt {b.paymentReceipt.receiptNumber} is being prepared; check back shortly.</p>
                   ) : (
-                    <p>No official receipt has been released.</p>
+                    <p>{b.paymentStatus === "paid" ? "No receipt has been released yet." : "A receipt is issued after the parish office verifies your payment."}</p>
                   )}
                 </article>
               );

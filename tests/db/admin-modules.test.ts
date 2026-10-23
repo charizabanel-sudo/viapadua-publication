@@ -123,8 +123,10 @@ describe("database: admin modules", { skip }, () => {
     await changeBookingStatus(db, { bookingId: id, action: "confirm", adminId });
     assert.equal((await changeBookingStatus(db, { bookingId: id, action: "complete", adminId })).ok, true);
 
-    assert.deepEqual(await markBookingPaid(db, { bookingId: id, adminId }), { ok: true, reference });
-    assert.deepEqual(await markBookingPaid(db, { bookingId: id, adminId }), { ok: false, reason: "already_paid" });
+    assert.deepEqual(await markBookingPaid(db, { bookingId: id, adminId, verification: null }), { ok: false, reason: "verification_required" });
+    const paid = await markBookingPaid(db, { bookingId: id, adminId, verification: "cash_received" });
+    assert.ok(paid.ok && paid.reference === reference && paid.receiptId);
+    assert.deepEqual(await markBookingPaid(db, { bookingId: id, adminId, verification: "cash_received" }), { ok: false, reason: "already_paid" });
     const row = await db.booking.findUniqueOrThrow({ where: { id } });
     assert.equal(row.paymentStatus, "paid");
     assert.equal(row.paidById, adminId);
@@ -133,8 +135,8 @@ describe("database: admin modules", { skip }, () => {
     const other = await createBookingRecord(db, booking({ bookTime: "10:00" }));
     const otherId = await idOf(other.reference);
     await changeBookingStatus(db, { bookingId: otherId, action: "cancel", adminId });
-    assert.deepEqual(await markBookingPaid(db, { bookingId: otherId, adminId }), { ok: false, reason: "cancelled" });
-    assert.deepEqual(await markBookingPaid(db, { bookingId: 99999, adminId }), { ok: false, reason: "not_found" });
+    assert.deepEqual(await markBookingPaid(db, { bookingId: otherId, adminId, verification: "cash_received" }), { ok: false, reason: "cancelled" });
+    assert.deepEqual(await markBookingPaid(db, { bookingId: 99999, adminId, verification: "cash_received" }), { ok: false, reason: "not_found" });
   });
 
   it("saves certificates only for completed certificate services", async () => {
@@ -188,7 +190,7 @@ describe("database: admin modules", { skip }, () => {
     await createBookingRecord(db, booking({ bookTime: "10:00", bookEmail: "ana@example.com" }));
     const c = await createBookingRecord(db, booking({ bookTime: "12:00", bookEmail: "carlo@example.com", bookFullName: "Carlo" }));
     await changeBookingStatus(db, { bookingId: await idOf(a.reference), action: "confirm", adminId });
-    await markBookingPaid(db, { bookingId: await idOf(a.reference), adminId });
+    await markBookingPaid(db, { bookingId: await idOf(a.reference), adminId, verification: "cash_received" });
     await changeBookingStatus(db, { bookingId: await idOf(c.reference), action: "cancel", adminId });
 
     const report = await getReport(db, normalizeReportFilters({}, NOW));
