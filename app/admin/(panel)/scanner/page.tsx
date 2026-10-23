@@ -1,3 +1,4 @@
+import FileDownload from "@/components/files/FileDownload";
 import DocumentScanner from "@/components/admin/DocumentScanner";
 import { getDb } from "@/lib/server/db";
 import { requireAdmin } from "@/lib/server/auth";
@@ -45,7 +46,7 @@ export default async function ScannerPage({
       <h2>Saved scans</h2>
       {rows.map((d) => (
         <article className="portal-card" key={d.id}>
-          <a href={`/api/documents/${d.id}`}>{d.filename}</a>
+          <FileDownload href={`/api/documents/${d.id}`} previewHref={`/api/documents/${d.id}?preview=1`}>{d.filename}</FileDownload>
           {!d.bookingId && !d.requestId && (
             <p>
               <a href={`/admin/scanner?document=${d.id}`}>

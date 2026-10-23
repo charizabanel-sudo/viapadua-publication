@@ -4,7 +4,7 @@ import { before, beforeEach, after, describe, it } from "node:test";
 import { createPrismaClient, type Db } from "@/lib/db/client";
 import { attemptUserAuth } from "@/lib/auth/user";
 import { hashPassword } from "@/lib/auth/password";
-import { decideClaim } from "@/lib/portal/claims";
+import { ownsRecord, type Actor } from "@/lib/portal/access";
 import {
   getAccountChat,
   performAccountAction,
@@ -23,12 +23,16 @@ const safe =
   parsed &&
   ["127.0.0.1", "localhost", "::1", "[::1]"].includes(parsed.hostname) &&
   /(?:^|_)test(?:_|$)/i.test(parsed.pathname.slice(1));
+async function canAccessBookingAs(db: Db, actor: Actor, id: number) {
+  const b = await db.booking.findUniqueOrThrow({ where: { id }, select: { userId: true, guestAccess: true } });
+  return ownsRecord(actor, { userId: b.userId, guestHash: b.guestAccess?.credentialHash, guestExpiresAt: b.guestAccess?.expiresAt });
+}
 const context = {
   ip: "127.0.0.44",
   secret: "portal-isolated-test-secret-".repeat(3),
 };
 describe(
-  "database: account, claim, document and chat boundaries",
+  "database: account, ownership, document and chat boundaries",
   { skip: !safe ? "requires a named local test database" : false },
   () => {
     let db: Db,
@@ -160,47 +164,32 @@ describe(
       assert.equal(denied.ok, false);
       assert.ok("limited" in denied && denied.limited);
     });
-    it("matching email never grants historical ownership; staff-approved claims are atomic and audited", async () => {
+    it("matching email never grants historical ownership; retired claims keep established ownership and audit rows", async () => {
       const row = await booking();
       assert.equal(
         (await db.booking.findMany({ where: { userId: a.id } })).length,
         0,
       );
+      // A booking linked by a past, approved claim keeps its owner; claim and audit rows stay intact.
+      await db.booking.update({ where: { id: row.id }, data: { userId: a.id } });
       const claim = await db.bookingClaim.create({
         data: {
           userId: a.id,
           reference: row.reference,
           evidence: "Original parish reference",
+          status: "approved",
+          bookingId: row.id,
+          reviewedById: adminId,
+          reviewedAt: new Date(),
+          reviewNote: "Identity checked at parish office using original ID.",
         },
       });
-      await assert.rejects(
-        decideClaim(db, { id: claim.id, adminId, approve: true, note: "name" }),
-      );
-      await decideClaim(db, {
-        id: claim.id,
-        adminId,
-        approve: true,
-        note: "Identity checked at parish office using original ID.",
+      await db.portalAudit.create({
+        data: { action: "claim_reviewed", targetId: claim.id, adminId, userId: a.id, detail: { approved: true } },
       });
-      assert.equal(
-        (await db.booking.findUniqueOrThrow({ where: { id: row.id } })).userId,
-        a.id,
-      );
-      const other = await db.bookingClaim.create({
-        data: {
-          userId: b.id,
-          reference: row.reference,
-          evidence: "Matching name is insufficient",
-        },
-      });
-      await assert.rejects(
-        decideClaim(db, {
-          id: other.id,
-          adminId,
-          approve: true,
-          note: "Do not overwrite an existing owner",
-        }),
-      );
+      assert.ok(await canAccessBookingAs(db, { userId: a.id }, row.id));
+      assert.equal(await canAccessBookingAs(db, { userId: b.id }, row.id), false);
+      assert.equal(await db.bookingClaim.count(), 1);
       assert.equal(
         await db.portalAudit.count({ where: { action: "claim_reviewed" } }),
         1,

@@ -9,6 +9,7 @@ import {
   needsRehash,
   verifyPassword,
 } from "./password";
+import { MAX_PASSWORD_BYTES, newPasswordError } from "./policy";
 export const userLoginSchema = z
   .object({
     email: z
@@ -25,13 +26,10 @@ export const registerSchema = z
       .email()
       .max(255)
       .transform((v) => v.trim().toLowerCase()),
-    password: z
-      .string()
-      .min(12, "Use at least 12 characters.")
-      .refine(
-        (v) => Buffer.byteLength(v, "utf8") <= 72,
-        "Password must fit in 72 UTF-8 bytes.",
-      ),
+    password: z.string().superRefine((v, ctx) => {
+      const error = newPasswordError(v);
+      if (error) ctx.addIssue({ code: "custom", message: error });
+    }),
     confirm: z.string(),
     website: z.literal("").default(""),
   })
@@ -100,7 +98,7 @@ export async function attemptUserAuth(
         }
         if (
           needsRehash(user.password) &&
-          Buffer.byteLength(input.password, "utf8") <= 72
+          Buffer.byteLength(input.password, "utf8") <= MAX_PASSWORD_BYTES
         )
           await tx.user.update({
             where: { id: user.id },

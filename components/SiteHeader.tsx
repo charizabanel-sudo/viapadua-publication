@@ -2,9 +2,11 @@ import AccountLink from "@/components/auth/AccountLink";
 import Link from "next/link";
 import AdminLoginMenu from "@/components/home/AdminLoginMenu";
 import NavbarShell from "@/components/home/NavbarShell";
+import { getCurrentUser } from "@/lib/server/user-auth";
 import { SITE } from "@/lib/site";
 
-export default function SiteHeader() {
+export default async function SiteHeader() {
+  const signedIn = Boolean(await getCurrentUser());
   return (
     <NavbarShell>
       <div className="nav-container">
@@ -18,8 +20,8 @@ export default function SiteHeader() {
           </div>
         </Link>
         <nav className="nav-buttons" aria-label="Main">
-          <AccountLink />
-          <AdminLoginMenu />
+          <AccountLink signedIn={signedIn} />
+          <AdminLoginMenu userSignInAvailable={!signedIn} />
         </nav>
       </div>
     </NavbarShell>

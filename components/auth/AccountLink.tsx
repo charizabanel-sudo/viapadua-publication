@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/server/user-auth";
-export default async function AccountLink() {
-  const user = await getCurrentUser();
-  return (
-    <Link className="nav-btn" href={user ? "/portal" : "/account/login"}>
-      {user ? "My portal" : "Sign in"}
+import UserSignInMenu from "./UserSignInMenu";
+
+/** Signed-in parishioners go to their portal; everyone else gets the floating sign-in card. */
+export default function AccountLink({ signedIn }: { signedIn: boolean }) {
+  return signedIn ? (
+    <Link className="nav-btn" href="/portal">
+      <i className="fas fa-user" aria-hidden="true" /> My portal
     </Link>
+  ) : (
+    <UserSignInMenu />
   );
 }

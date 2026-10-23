@@ -55,11 +55,5 @@ export async function certificatePdf(doc: Document): Promise<Blob> {
     type: "application/pdf",
   });
 }
-export function downloadBlob(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob),
-    anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = name;
-  anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
-}
+/** Kept for existing callers; see lib/client/download for the shared implementation. */
+export { saveBlob as downloadBlob } from "@/lib/client/download";

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { canReadDocument } from "@/lib/server/documents";
+import { fileError, fileResponse } from "@/lib/server/file-response";
 import { getActor } from "@/lib/server/user-auth";
 import { getDb } from "@/lib/server/db";
 export const dynamic = "force-dynamic";
@@ -8,24 +9,20 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
-  const headers = {
-    "Cache-Control": "private, no-store",
-    Vary: "Cookie",
-    "X-Content-Type-Options": "nosniff",
-    "Content-Security-Policy": "sandbox; default-src 'none'",
-  };
-  if (
-    !z.uuid().safeParse(id).success ||
-    !(await canReadDocument(await getActor(), id))
-  )
-    return new Response("Document unavailable", { status: 404, headers });
-  const d = await getDb().privateDocument.findUniqueOrThrow({ where: { id } });
-  const inline = new URL(request.url).searchParams.get("preview") === "1";
-  return new Response(new Uint8Array(d.content), {
-    headers: {
-      ...headers,
-      "Content-Type": d.mime,
-      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${d.filename.replace(/["\r\n]/g, "_")}"`,
-    },
+  const actor = await getActor();
+  // Without any session the visitor must sign in again; existence of the file is not revealed.
+  if (!actor.adminId && !actor.userId && !actor.guestHash)
+    return fileError("Sign in again to open this document.", 401);
+  if (!z.uuid().safeParse(id).success || !(await canReadDocument(actor, id)))
+    return fileError("Document unavailable", 404);
+  const d = await getDb().privateDocument.findUnique({
+    where: { id },
+    select: { content: true, mime: true, filename: true },
+  });
+  if (!d?.content?.length) return fileError("Document unavailable", 404);
+  return fileResponse(d.content, {
+    mime: d.mime,
+    filename: d.filename,
+    inline: new URL(request.url).searchParams.get("preview") === "1",
   });
 }

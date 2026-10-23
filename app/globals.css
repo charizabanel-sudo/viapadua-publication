@@ -16,9 +16,9 @@
     --accent-rgb: 157 195 237;
     --on-brand-muted: #d6e5f7;
     --scrollbar-thumb-on-dark: #92b5dc;
-    /* Existing logo artwork keeps its original palette. */
-    --logo-ink: #571d30;
-    --logo-accent: #d7c29e;
+    /* System church logo: blue glyph on white, or white glyph on blue. */
+    --logo-ink: #123b70;
+    --logo-accent: #ffffff;
     --warning-accent: #d7c29e;
     --accent-ink: #245b95;
     --canvas: #f5f8fc;

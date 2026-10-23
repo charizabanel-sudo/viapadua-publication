@@ -8,7 +8,7 @@
 }
 .navbar .nav-container { width: min(1240px, 100%); min-height: 82px; padding: 14px 32px; gap: 24px; }
 .navbar .logo { gap: 12px; flex-shrink: 0; }
-.navbar .logo-box { width: 46px; min-width: 46px; height: 46px; background: var(--logo-ink); color: var(--logo-accent); border-radius: 13px; font-size: 23px; }
+.navbar .logo-box { width: 46px; min-width: 46px; height: 46px; background: var(--logo-accent); color: var(--logo-ink); border-radius: 13px; font-size: 23px; }
 .navbar .logo-text h3 { font-size: 23px; line-height: 1.15; color: var(--surface); letter-spacing: -.5px; }
 .navbar .logo-text span { color: var(--on-brand-muted); font-size: 11px; letter-spacing: .09em; text-transform: uppercase; font-weight: 600; }
 .navbar .nav-buttons { gap: 8px; }
@@ -25,8 +25,8 @@
 .vp-admin .dashboard { background: var(--canvas); }
 .vp-admin .sidebar { --scrollbar-track: var(--brand-deep); --scrollbar-thumb: var(--scrollbar-thumb-on-dark); --scrollbar-thumb-hover: var(--accent); width: var(--sidebar-width); min-width: var(--sidebar-width); height: 100dvh; background: linear-gradient(165deg, var(--brand), var(--brand-deep)); }
 .vp-admin .sidebar-logo { flex-shrink: 0; height: 100px; padding: 24px 22px; gap: 12px; }
-.vp-admin .logo-icon { width: 43px; height: 46px; border: 1px solid rgb(215 194 158 / 35%); background: rgb(255 255 255 / 7%); border-radius: 12px; }
-.vp-admin .logo-icon i { color: var(--logo-accent); font-size: 22px; }
+.vp-admin .logo-icon { width: 43px; height: 46px; border: 1px solid rgb(255 255 255 / 35%); background: var(--logo-accent); border-radius: 12px; }
+.vp-admin .logo-icon i { color: var(--logo-ink); font-size: 22px; }
 .vp-admin .logo-text h2 { font-size: 21px; letter-spacing: -.4px; line-height: 1.2; }
 .vp-admin .logo-text p { font-size: 11px; font-weight: 500; color: var(--accent); letter-spacing: .03em; white-space: normal; line-height: 1.4; }
 .vp-admin .sidebar-nav { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px 14px; }
@@ -194,7 +194,7 @@
 .public-overlay-backdrop { background: rgb(var(--brand-deep-rgb) / 65%); }
 .public-dialog :focus-visible { outline-color: var(--brand-hover); }
 .login-layer .login-card { background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-float); }
-.login-layer .login-logo { background: var(--logo-ink); color: var(--logo-accent); box-shadow: 0 8px 20px rgb(87 29 48 / 15%); }
+.login-layer .login-logo { background: var(--logo-ink); color: var(--logo-accent); box-shadow: 0 8px 20px rgb(var(--brand-rgb) / 18%); }
 .login-layer .form-group label { font-size: 12px; }
 .login-layer .login-card-head h2 { font-size: 25px; color: var(--brand); }
 .login-layer .login-card-head p { font-size: 13px; color: var(--muted); }

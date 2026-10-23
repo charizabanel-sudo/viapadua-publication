@@ -15,6 +15,7 @@ import "./styles/public-overlays.css";
 import "./styles/messaging.css";
 import "./styles/portal.css";
 import "./styles/design-system.css";
+import "./styles/portal-shell.css";
 import SplashScreen from "@/components/SplashScreen";
 import { SPLASH_BOOT_SCRIPT } from "@/lib/splash";
 import { PublicOverlayProvider } from "@/components/public/PublicOverlayProvider";

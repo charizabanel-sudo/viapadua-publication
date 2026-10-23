@@ -27,7 +27,7 @@ html.vp-splash-on .vp-splash {
 html.vp-splash-on.vp-splash-leaving .vp-splash { opacity: 0; visibility: hidden; }
 
 .vp-splash-inner { display: flex; flex-direction: column; align-items: center; animation: vpSplashIn 0.45s ease-out both; }
-.vp-splash-logo { border-radius: 20px; box-shadow: 0 12px 32px rgb(215 194 158 / 0.28); }
+.vp-splash-logo { border-radius: 20px; box-shadow: 0 12px 32px rgb(0 0 0 / 0.2); }
 .vp-splash-name {
     margin-top: 18px; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 30px; font-weight: 800; letter-spacing: -0.01em;

@@ -69,6 +69,10 @@ async function tinyPdf() {
   });
   return Buffer.from(await d.save());
 }
+const shiftIso = (month) => {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
+};
 async function register(page, name, email) {
   await page.goto(base + "/account/register");
   await page.locator('.portal-auth [name="name"]').fill(name);
@@ -222,6 +226,7 @@ try {
   await register(a, "Account A", "browser-a@example.invalid");
   await register(b, "Account B", "browser-b@example.invalid");
   assert.equal((await api(userA, "/api/chat?account=1")).thread, null);
+  await a.goto(base + "/portal?tab=messages");
   await a
     .getByText("Bring this browser's guest conversation into my account", {
       exact: true,
@@ -333,7 +338,14 @@ try {
   await admin.goto(base + "/admin/reports");
   const csvDownload = admin.waitForEvent("download");
   await admin.getByRole("link", { name: "Bookings CSV", exact: true }).click();
-  assert.match((await csvDownload).suggestedFilename(), /\.csv$/);
+  const csvFile = await csvDownload;
+  assert.match(csvFile.suggestedFilename(), /^ViaPadua_Bookings_.*\.csv$/);
+  const csvPath = path.join(out, "bookings.csv");
+  await csvFile.saveAs(csvPath);
+  const csvText = fs.readFileSync(csvPath, "utf8");
+  assert.equal(csvText.charCodeAt(0), 0xfeff);
+  assert.ok(csvText.slice(1).startsWith("Reference,Service,Date,Time,Requester"));
+  assert.doesNotMatch(csvText, /<html|Sign in again/i);
   pass(
     "HTTPS admin login and all signed-in redirects open Dashboard; authorized CSV exports and UI download work; guests remain denied",
   );
@@ -416,9 +428,13 @@ try {
   assert.equal(delivered.status(), 200);
   assert.match(delivered.headers()["content-type"], /application\/pdf/);
   assert.equal((await userA.request.get(base + downloadUrl)).status(), 404);
+  // No session at all: a sign-in prompt (same for every id), never the file or an attachment.
+  const noSession = await otherGuest.request.get(base + downloadUrl);
+  assert.equal(noSession.status(), 401);
+  assert.equal(noSession.headers()["content-disposition"], undefined);
   assert.equal(
-    (await otherGuest.request.get(base + downloadUrl)).status(),
-    404,
+    (await otherGuest.request.get(base + "/api/documents/" + randomUUID())).status(),
+    401,
   );
   pass(
     "Edited certificate produces an actual PDF at 297×198 mm, releases only after admin verification, and downloads only for its owner",
@@ -460,46 +476,10 @@ try {
   );
   await a.goto(base + "/portal");
   assert.equal(await a.getByText("VP-TEST-0099", { exact: true }).count(), 0);
-  await a
-    .getByText("Claim a historical guest booking", { exact: true })
-    .click();
-  await a.locator('[name="reference"]').fill("VP-TEST-0099");
-  await a
-    .locator('[name="evidence"]')
-    .fill(
-      "I can present the original booking record and ID at the parish office.",
-    );
-  await a
-    .getByRole("button", { name: "Request admin review", exact: true })
-    .click();
-  await a.getByRole("status").filter({ hasText: "Claim received" }).waitFor();
-  assert.equal(
-    (
-      await pool.query(
-        "SELECT user_id FROM bookings WHERE reference='VP-TEST-0099'",
-      )
-    ).rows[0].user_id,
-    null,
-  );
-  await admin.goto(base + "/admin/claims");
-  await admin
-    .locator('textarea[name="note"]')
-    .fill(
-      "Original booking and identity verified in person at the parish office.",
-    );
-  await admin.locator('select[name="decision"]').selectOption("approve");
-  await admin
-    .getByRole("button", { name: "Record decision", exact: true })
-    .click();
-  await wait(
-    async () =>
-      (
-        await pool.query(
-          "SELECT status FROM booking_claims WHERE reference='VP-TEST-0099'",
-        )
-      ).rows[0]?.status === "approved",
-    "claim decision persisted",
-  );
+  assert.equal(await a.getByText(/historical guest booking|claim/i).count(), 0);
+  assert.equal((await staff.request.get(base + "/admin/claims", { maxRedirects: 0 })).status(), 404);
+  // Ownership established before claims were retired keeps working; claim rows stay untouched.
+  await pool.query("UPDATE bookings SET user_id=$1 WHERE reference='VP-TEST-0099'", [accountBooking.owner]);
   await a.reload();
   assert.match(await a.locator("main").innerText(), /VP-TEST-0099/);
   await b.goto(base + "/portal");
@@ -569,7 +549,7 @@ try {
     "Guest GCash booking persists private PDF evidence under its browser credential and remains pending/unpaid",
   );
   pass(
-    "Authenticated booking binds to account ID; matching email alone never claims history; explicit admin claim approval grants only that user access",
+    "Authenticated booking binds to account ID; matching email alone never grants history; claims UI/endpoint retired while established ownership keeps working for that user only",
   );
   const proof = await userA.request.post(base + "/api/documents", {
     headers: { Origin: base },
@@ -640,9 +620,28 @@ try {
   });
   assert.equal(receipt.status(), 200);
   await a.goto(base + "/portal?tab=receipts");
+  const receiptDownload = a.waitForEvent("download");
   await a
     .getByRole("link", { name: "Download official receipt", exact: true })
-    .waitFor();
+    .click();
+  const receiptPath = path.join(out, "receipt.pdf");
+  await (await receiptDownload).saveAs(receiptPath);
+  assert.deepEqual(fs.readFileSync(receiptPath), docBytes);
+  await a.getByRole("button", { name: "Open", exact: true }).waitFor();
+  const receiptId = (await pool.query("SELECT id FROM private_documents WHERE kind='receipt' LIMIT 1")).rows[0].id;
+  assert.equal((await userB.request.get(base + "/api/documents/" + receiptId)).status(), 404);
+  const signedOut = await browser.newContext({ ignoreHTTPSErrors: true });
+  const anonymous = await signedOut.request.get(base + "/api/documents/" + receiptId);
+  assert.equal(anonymous.status(), 401);
+  assert.match(anonymous.headers()["content-type"], /text\/plain/);
+  assert.equal(anonymous.headers()["content-disposition"], undefined);
+  const anonymousCsv = await signedOut.request.get(base + "/admin/export?kind=guests");
+  assert.equal(anonymousCsv.status(), 401);
+  assert.equal(anonymousCsv.headers()["content-disposition"], undefined);
+  await signedOut.close();
+  const preview = await userA.request.get(base + "/api/documents/" + receiptId + "?preview=1");
+  assert.match(preview.headers()["content-disposition"], /^inline;/);
+  assert.doesNotMatch(preview.headers()["content-security-policy"], /sandbox/);
   pass(
     "Proof remains unpaid until admin review; official receipt release is gated, persistent, and ownership protected",
   );
@@ -657,8 +656,24 @@ try {
     calendarText,
     /PRIVATE STAFF MEETING|Account A booking|Historical guest/,
   );
+  assert.ok((await b.locator(".cal-day").count()) >= 28);
+  await b.locator(`.cal-day[data-date="${iso}"]`).click();
+  await b.locator(".cal-agenda").getByText("Public parish gathering").click();
+  assert.equal(await b.getByRole("link", { name: "Book Now" }).getAttribute("href"), "/?services=1");
+  await b.getByRole("link", { name: "Next month" }).click();
+  await b.waitForURL(new RegExp("month=" + shiftIso(iso.slice(0, 7))));
+  await b.goto(base + "/portal?tab=calendar");
+  const todayIso = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+  assert.ok(await b.locator(`.cal-day.today[data-date="${todayIso}"]`).count());
+  await a.goto(base + "/portal?tab=calendar&month=" + iso.slice(0, 7));
+  assert.match(await a.locator(`.cal-day[data-date="${iso}"]`).getAttribute("aria-label"), /your booking/);
+  await a.getByRole("button", { name: "Portal menu" }).click();
+  await a.getByRole("link", { name: "Receipts" }).waitFor();
+  await a.keyboard.press("Escape");
+  await a.getByRole("button", { name: "Portal menu" }).waitFor();
+  assert.equal(await a.getByRole("link", { name: "Receipts" }).isVisible(), false);
   pass(
-    "User calendar shows public events/availability without private events or other guests' identities",
+    "User calendar shows month grid, today, own bookings, public events and availability without private events or other users' identities; phone drawer opens and closes with Escape",
   );
   await admin.setViewportSize({ width: 360, height: 800 });
   await admin.goto(base + "/admin/scanner");
@@ -839,8 +854,57 @@ try {
     "360/390 px services, account portal and admin scanner have no horizontal page overflow",
   );
   await a.goto(base + "/portal");
+  await a.getByRole("button", { name: "Portal menu" }).click();
   await a.getByRole("button", { name: "Log out", exact: true }).click();
   await a.waitForURL(base + "/");
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport, reducedMotion: "reduce" });
+    const p = await ctx.newPage();
+    p.on("pageerror", (e) => results.errors.push(e.message));
+    const legacy = await ctx.request.get(base + "/account/login", { maxRedirects: 0 });
+    assert.equal(legacy.headers().location, "/?signin=1");
+    await p.goto(base + "/portal?tab=calendar");
+    await p.waitForURL(/\/\?signin=1&next=%2Fportal%3Ftab%3Dcalendar/);
+    const card = p.getByRole("dialog", { name: "Sign In", exact: true });
+    await card.waitFor();
+    assert.match(await card.innerText(), /Parishioner account/i);
+    await wait(() => p.evaluate(() => document.activeElement?.getAttribute("name") === "email"), "sign-in focus");
+    await card.locator('input[name="email"]').fill("browser-a@example.invalid");
+    const pw = card.locator('input[name="password"]');
+    await pw.fill("wrong-password-1");
+    await pw.focus();
+    await card.getByRole("button", { name: "Show password" }).click();
+    assert.equal(await pw.getAttribute("type"), "text");
+    assert.equal(await pw.inputValue(), "wrong-password-1");
+    assert.equal(await p.evaluate(() => document.activeElement?.getAttribute("name")), "password");
+    await card.getByRole("button", { name: "Hide password" }).click();
+    assert.equal(await pw.getAttribute("type"), "password");
+    await card.getByRole("button", { name: "Sign In", exact: true }).click();
+    await card.getByRole("alert").filter({ hasText: "Invalid email or password." }).waitFor();
+    assert.equal(await card.locator('input[name="email"]').inputValue(), "browser-a@example.invalid");
+    await p.keyboard.press("Escape");
+    await card.waitFor({ state: "hidden" });
+    await p.getByRole("link", { name: "Sign in" }).click();
+    await card.waitFor();
+    await card.getByRole("button", { name: "Admin sign in" }).click();
+    await p.getByRole("dialog", { name: "Admin Sign In" }).waitFor();
+    assert.equal(await card.isVisible(), false);
+    await p.getByRole("dialog", { name: "Admin Sign In" }).getByRole("button", { name: "Show password" }).waitFor();
+    await p.goto(base + "/?signin=1&next=%2Fportal%3Ftab%3Dcalendar");
+    await card.locator('input[name="email"]').fill("browser-a@example.invalid");
+    await card.locator('input[name="password"]').fill(password);
+    await card.getByRole("button", { name: "Sign In", exact: true }).click();
+    await p.waitForURL(base + "/portal?tab=calendar");
+    await p.locator(".cal-day").first().waitFor();
+    await p.screenshot({ path: path.join(out, `calendar-${viewport.width}.png`), fullPage: true });
+    assert.equal(await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, "calendar overflow " + viewport.width);
+    const back = await ctx.request.get(base + "/account/login?next=https://evil.example", { maxRedirects: 0 });
+    assert.equal(back.headers().location, "/portal");
+    await ctx.close();
+  }
+  pass(
+    "Floating parishioner sign-in: legacy URL redirect, safe return, focus, Escape, inline error keeps email, password visibility toggle keeps value and focus, admin card switch, desktop/mobile calendar without overflow",
+  );
   assert.equal(
     (await userA.request.get(base + "/api/chat?account=1")).status(),
     401,

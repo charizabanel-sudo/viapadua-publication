@@ -21,6 +21,7 @@ import { saveRequestCertificateAction } from "@/lib/server/actions/portal";
 import { saveCertificateAction } from "@/lib/server/actions/admin";
 import Dialog from "./Dialog";
 import { certificatePdf, downloadBlob } from "@/lib/certificates/pdf";
+import FileActions from "@/components/files/FileActions";
 import { showToast } from "./Toaster";
 
 type Props = {
@@ -158,6 +159,7 @@ function Workspace({
   const [draft, setDraft] = useState("");
   const [stageWidth, setStageWidth] = useState(0);
   const [releaseConfirmed, setReleaseConfirmed] = useState(false);
+  const [lastPdf, setLastPdf] = useState<Blob | null>(null);
   const [pending, startTransition] = useTransition();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const printRef = useRef<HTMLIFrameElement>(null);
@@ -366,6 +368,7 @@ function Workspace({
           );
         }
         downloadBlob(blob, "ViaPadua-Certificate.pdf");
+        setLastPdf(blob);
       } catch (error) {
         showToast(
           false,
@@ -565,6 +568,7 @@ function Workspace({
         >
           Download PDF
         </button>
+        {lastPdf && <FileActions blob={lastPdf} filename="ViaPadua-Certificate.pdf" />}
         <span className={`cert-status${dirty ? " dirty" : ""}`} role="status">
           {dirty ? "Unsaved changes" : "All changes saved"}
         </span>

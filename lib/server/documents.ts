@@ -1,7 +1,7 @@
 import "server-only";
 import { ownsRecord, type Actor } from "@/lib/portal/access";
 import { getDb } from "./db";
-/** Authorization is resolved through the current booking/request, so confirmed claims also work. */
+/** Authorization is resolved through the current booking/request owner, including bookings linked to an account before claims were retired. */
 export async function canReadDocument(actor: Actor, id: string) {
   const d = await getDb().privateDocument.findUnique({
     where: { id },

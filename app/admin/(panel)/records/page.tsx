@@ -1,3 +1,4 @@
+import FileDownload from "@/components/files/FileDownload";
 import UploadDocument from "@/components/portal/UploadDocument";
 import Link from "next/link";
 import DownloadLink from "@/components/admin/DownloadLink";
@@ -200,7 +201,7 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
                       <i className="fas fa-eye" aria-hidden="true" /> View booking
                     </Link>
                   </div>
-                  <details className="portal-card"><summary>Private documents and receipts</summary>{r.paymentProof && <p><a href={`/api/bookings/${r.id}/legacy-proof`}>Historical payment evidence</a></p>}{r.documents.map(d => <p key={d.id}><a href={`/api/documents/${d.id}`}>{d.kind}: {d.filename}</a></p>)}<UploadDocument bookingId={r.id} kind="payment_proof" />{r.paymentStatus === "paid" && <UploadDocument bookingId={r.id} kind="receipt" />}{certEligible && <UploadDocument bookingId={r.id} kind="certificate" />}</details>
+                  <details className="portal-card"><summary>Private documents and receipts</summary>{r.paymentProof && <p><FileDownload href={`/api/bookings/${r.id}/legacy-proof`} previewHref={`/api/bookings/${r.id}/legacy-proof?preview=1`}>Historical payment evidence</FileDownload></p>}{r.documents.map(d => <p key={d.id}><FileDownload href={`/api/documents/${d.id}`} previewHref={`/api/documents/${d.id}?preview=1`}>{d.kind}: {d.filename}</FileDownload></p>)}<UploadDocument bookingId={r.id} kind="payment_proof" />{r.paymentStatus === "paid" && <UploadDocument bookingId={r.id} kind="receipt" />}{certEligible && <UploadDocument bookingId={r.id} kind="certificate" />}</details>
                 </article>
               );
             })}

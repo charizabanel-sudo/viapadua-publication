@@ -1,4 +1,5 @@
 "use client";
+import FileDownload from "@/components/files/FileDownload";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { certificateTypes } from "@/lib/certificates/requests";
 type Progress = {
@@ -178,9 +179,13 @@ export default function CertificateRequestForm({
           </p>
           {r.note && <p>{r.note}</p>}
           {r.documents.map((d) => (
-            <a key={d.id} href={`/api/documents/${d.id}`} download>
+            <FileDownload
+              key={d.id}
+              href={`/api/documents/${d.id}`}
+              previewHref={`/api/documents/${d.id}?preview=1`}
+            >
               Download released PDF
-            </a>
+            </FileDownload>
           ))}
         </article>
       ))}

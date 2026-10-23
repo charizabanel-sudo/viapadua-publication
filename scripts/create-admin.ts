@@ -9,6 +9,7 @@ import { createInterface } from "node:readline";
 import { config } from "dotenv";
 import { z } from "zod";
 import { MIN_ADMIN_PASSWORD_LENGTH, hashPassword } from "@/lib/auth/password";
+import { MAX_PASSWORD_BYTES, newPasswordError } from "@/lib/auth/policy";
 import { createPrismaClient } from "@/lib/db/client";
 
 config({ path: ".env.local", quiet: true });
@@ -108,11 +109,11 @@ async function main() {
       process.exit(1);
     }
 
-    const password = await promptHidden(`Password for ${email} (min ${MIN_ADMIN_PASSWORD_LENGTH} chars): `);
+    const password = await promptHidden(`Password for ${email} (${MIN_ADMIN_PASSWORD_LENGTH}+ characters, max ${MAX_PASSWORD_BYTES} bytes): `);
     const confirm = await promptHidden("Confirm password: ");
     if (password !== confirm) throw new Error("Passwords do not match.");
-    if (password.length < MIN_ADMIN_PASSWORD_LENGTH) throw new Error(`Password must be at least ${MIN_ADMIN_PASSWORD_LENGTH} characters.`);
-    if (password.length > 200) throw new Error("Password is too long (max 200 characters).");
+    const policyError = newPasswordError(password);
+    if (policyError) throw new Error(policyError);
     if (password.toLowerCase().includes(email.split("@")[0])) throw new Error("Password must not contain the email name.");
 
     const passwordHash = await hashPassword(password);

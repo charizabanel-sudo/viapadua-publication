@@ -2,6 +2,7 @@
 
 import { useActionState, useState, type Ref } from "react";
 import { loginAction, type LoginState } from "@/lib/server/actions/login";
+import PasswordToggle from "./PasswordToggle";
 
 type Props = {
   /** Prefix for element ids, so the form can appear on another page (homepage panel) without id clashes. */
@@ -9,7 +10,7 @@ type Props = {
   emailRef?: Ref<HTMLInputElement>;
 };
 
-/** Admin sign-in form. Rendered in the homepage login card (the only login UI). */
+/** Admin sign-in form. Rendered in the homepage admin login card. */
 export default function LoginForm({ idPrefix = "", emailRef }: Props) {
   const [state, formAction, pending] = useActionState<LoginState, FormData>(loginAction, {});
   const [showPassword, setShowPassword] = useState(false);
@@ -74,15 +75,7 @@ export default function LoginForm({ idPrefix = "", emailRef }: Props) {
             aria-invalid={Boolean(state.fieldErrors?.password)}
             aria-describedby={state.fieldErrors?.password ? `${ids.password}-error` : undefined}
           />
-          <button
-            type="button"
-            className="toggle-password"
-            onClick={() => setShowPassword((v) => !v)}
-            aria-label={showPassword ? "Hide password" : "Show password"}
-            title={showPassword ? "Hide password" : "Show password"}
-          >
-            <i className={`fas ${showPassword ? "fa-eye-slash" : "fa-eye"}`} aria-hidden="true" />
-          </button>
+          <PasswordToggle inputId={ids.password} visible={showPassword} onToggle={() => setShowPassword((v) => !v)} />
         </div>
         {state.fieldErrors?.password && (
           <span className="field-error" id={`${ids.password}-error`}>

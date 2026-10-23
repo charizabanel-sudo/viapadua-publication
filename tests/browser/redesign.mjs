@@ -75,7 +75,7 @@ try {
       await publicPage.goto(base + route); await noOverflow(publicPage, route + " " + width);
     }
     await publicPage.keyboard.press("Escape");
-    for (const route of ["/admin", "/admin/bookings", "/admin/events", "/admin/records", "/admin/calendar", "/admin/reports", "/admin/messages", "/admin/claims", "/admin/scanner", "/admin/requests"]) {
+    for (const route of ["/admin", "/admin/bookings", "/admin/events", "/admin/records", "/admin/calendar", "/admin/reports", "/admin/messages", "/admin/scanner", "/admin/requests"]) {
       await admin.goto(base + route); await noOverflow(admin, route + " " + width);
       if (["/admin", "/admin/bookings"].includes(route)) await admin.screenshot({ path: `${out}/${route === '/admin' ? 'dashboard' : 'bookings'}-${width}.png`, fullPage: true });
     }
@@ -111,13 +111,13 @@ try {
   pass("Booking detail dialog traps forward/backward keyboard focus and closes with Escape");
   assert.equal(await publicPage.locator('.hero-emblem').evaluate(el => getComputedStyle(el).transform), 'none');
   await publicPage.goto(base + '/account/login');
-  await publicPage.locator('.portal-auth input[name="email"]').fill('browser-a@example.invalid');
-  await publicPage.locator('.portal-auth input[name="password"]').fill('Browser-test-password-123');
-  await publicPage.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await publicPage.locator('.login-card input[name="email"]').fill('browser-a@example.invalid');
+  await publicPage.locator('.login-card input[name="password"]').fill('Browser-test-password-123');
+  await publicPage.getByRole('button', { name: 'Sign In', exact: true }).click();
   await publicPage.waitForURL(base + '/portal');
   for (const width of [360, 390, 768, 1440]) {
     await publicPage.setViewportSize({ width, height: 900 });
-    for (const tab of ['bookings', 'calendar', 'receipts', 'certificates']) { await publicPage.goto(base + '/portal?tab=' + tab); await noOverflow(publicPage, 'Portal ' + tab + ' ' + width); }
+    for (const tab of ['bookings', 'calendar', 'receipts', 'certificates', 'messages']) { await publicPage.goto(base + '/portal?tab=' + tab); await noOverflow(publicPage, 'Portal ' + tab + ' ' + width); }
     if (width === 390) await publicPage.screenshot({ path: out + '/portal-390.png', fullPage: true });
   }
   pass("Authenticated bookings/calendar/receipts/certificates portal tabs fit all four viewport sizes");
@@ -151,7 +151,7 @@ try {
   console.log('Native zoom metrics ' + JSON.stringify(zoom));
   const nativeZoom = zoom.dpr > 1.9 && zoom.dpr < 2.1;
   if (!nativeZoom) await zoomPage.setViewportSize({ width: 720, height: 500 });
-  for (const route of ['/admin', '/admin/bookings', '/admin/events', '/admin/records', '/admin/calendar', '/admin/reports', '/admin/messages', '/admin/claims', '/admin/scanner', '/admin/requests']) { await zoomPage.goto(base + route); await noOverflow(zoomPage, '200% zoom ' + route); }
+  for (const route of ['/admin', '/admin/bookings', '/admin/events', '/admin/records', '/admin/calendar', '/admin/reports', '/admin/messages', '/admin/scanner', '/admin/requests']) { await zoomPage.goto(base + route); await noOverflow(zoomPage, '200% zoom ' + route); }
   await zoomPage.screenshot({ path: out + '/zoom-reflow.png', fullPage: true });
   await zoomContext.clearCookies();
   for (const route of ['/', '/account/login', '/account/register', '/?services=1']) { await zoomPage.goto(base + route); await noOverflow(zoomPage, '200% zoom ' + route); }

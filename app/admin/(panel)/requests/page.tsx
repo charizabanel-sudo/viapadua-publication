@@ -1,3 +1,4 @@
+import FileDownload from "@/components/files/FileDownload";
 import FeedbackForm from "@/components/portal/FeedbackForm";
 import { requireAdmin } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
@@ -94,9 +95,12 @@ export default async function RequestsPage() {
             )}
             {r.documents.map((file) => (
               <p key={file.id}>
-                <a href={`/api/documents/${file.id}`}>
+                <FileDownload
+                  href={`/api/documents/${file.id}`}
+                  previewHref={`/api/documents/${file.id}?preview=1`}
+                >
                   {file.kind}: {file.filename}
-                </a>
+                </FileDownload>
               </p>
             ))}
           </article>

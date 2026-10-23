@@ -5,6 +5,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { hashSessionToken, SESSION_TTL_MS } from "@/lib/auth/session";
 import type { Actor } from "@/lib/portal/access";
+import { signInHref } from "@/lib/auth/return-path";
 import { getCurrentAdmin } from "./auth";
 import { getDb } from "./db";
 import { isProduction } from "./env";
@@ -43,9 +44,10 @@ export const getCurrentUser = cache(async () => {
     email: session.user.email,
   };
 });
-export async function requireUser() {
+/** Signed-out (or expired) visitors land on the homepage sign-in card, returning to `next` afterwards. */
+export async function requireUser(next = "/portal") {
   const user = await getCurrentUser();
-  if (!user) redirect("/account/login");
+  if (!user) redirect(signInHref(next));
   return user;
 }
 export async function startUserSession(userId: number) {

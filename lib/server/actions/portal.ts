@@ -6,30 +6,9 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { requireAdmin } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
 import { requireUser } from "@/lib/server/user-auth";
-import { decideClaim } from "@/lib/portal/claims";
 import { cookies } from "next/headers";
 import { isProduction } from "@/lib/server/env";
 import { linkGuestConversation } from "@/lib/messaging/account";
-export async function reviewClaimAction(form: FormData) {
-  const admin = await requireAdmin();
-  const id = z.uuid().parse(form.get("id"));
-  try {
-    await decideClaim(getDb(), {
-      id,
-      adminId: admin.id,
-      approve: form.get("decision") === "approve",
-      note: String(form.get("note") ?? ""),
-    });
-  } catch (e) {
-    return {
-      ok: false,
-      message: e instanceof Error ? e.message : "Claim review failed.",
-    };
-  }
-  revalidatePath("/admin/claims");
-  revalidatePath("/portal");
-  return { ok: true, message: "Claim decision recorded." };
-}
 export async function linkGuestChatAction(form: FormData) {
   const user = await requireUser();
   if (form.get("consent") !== "yes")

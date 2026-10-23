@@ -72,7 +72,7 @@
         align-items: center;
         justify-content: center;
         font-size: 30px;
-        box-shadow: 0 8px 20px rgb(215 194 158 / 0.35);
+        box-shadow: 0 8px 20px rgb(var(--brand-rgb) / 0.18);
     }
 
     .login-card-head h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }

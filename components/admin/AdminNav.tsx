@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 
 const ITEMS = [
   { href: "/admin", label: "Dashboard", icon: "fa-chart-line", exact: true },
-  { href: "/admin/claims", label: "Account claims", icon: "fa-user-check" },
   { href: "/admin/scanner", label: "Documents", icon: "fa-camera" },
   { href: "/admin/requests", label: "Certificates", icon: "fa-scroll" },
   { href: "/admin/bookings", label: "Bookings", icon: "fa-book-open" },

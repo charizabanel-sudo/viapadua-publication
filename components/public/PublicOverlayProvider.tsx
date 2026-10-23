@@ -4,7 +4,7 @@ import { Suspense, createContext, useCallback, useContext, useEffect, useRef, us
 import { createPortal } from "react-dom";
 import { usePathname, useSearchParams } from "next/navigation";
 
-export type PublicOverlay = "services" | "login" | "chat";
+export type PublicOverlay = "services" | "login" | "signin" | "chat";
 type ServicesState = { service: string; step: string };
 type OverlayState = { active: PublicOverlay | null; servicesState: ServicesState };
 type OverlayContext = OverlayState & {
@@ -16,7 +16,7 @@ type OverlayContext = OverlayState & {
 
 const Context = createContext<OverlayContext | null>(null);
 const emptyState: OverlayState = { active: null, servicesState: { service: "", step: "catalog" } };
-const flags: PublicOverlay[] = ["services", "login", "chat"];
+const flags: PublicOverlay[] = ["services", "login", "signin", "chat"];
 
 function readLocation(): OverlayState {
   const url = new URL(window.location.href);
@@ -43,6 +43,8 @@ export function PublicOverlayProvider({ children }: { children: ReactNode }) {
     flags.forEach((key) => url.searchParams.delete(key));
     url.searchParams.delete("service");
     url.searchParams.delete("step");
+    // A return destination only belongs to an open parishioner sign-in card.
+    if (next.active !== "signin") url.searchParams.delete("next");
     if (next.active) url.searchParams.set(next.active, "1");
     if (next.active === "services") {
       if (next.servicesState.service) url.searchParams.set("service", next.servicesState.service);
@@ -148,7 +150,7 @@ export function PublicDialog({ kind, labelledBy, className = "", children }: { k
     if (!visible || !mounted) return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const frame = requestAnimationFrame(() => {
-      const first = ref.current?.querySelector<HTMLElement>(kind === "login" ? 'input[name="email"]' : "[data-dialog-autofocus]") ?? ref.current;
+      const first = ref.current?.querySelector<HTMLElement>(kind === "login" || kind === "signin" ? 'input[name="email"]' : "[data-dialog-autofocus]") ?? ref.current;
       first?.focus();
     });
     const keydown = (event: KeyboardEvent) => {

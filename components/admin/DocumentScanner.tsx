@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- Private blob previews are intentionally unoptimized. */
 import { useEffect, useRef, useState } from "react";
 import { downloadBlob } from "@/lib/certificates/pdf";
+import FileActions from "@/components/files/FileActions";
 type Candidate = {
   id: number;
   reference: string;
@@ -430,6 +431,9 @@ export default function DocumentScanner({
               >
                 Create PDF
               </button>
+            )}
+            {file.type === "application/pdf" && (
+              <FileActions blob={file} filename={file.name} />
             )}
             <button
               className="btn btn-secondary"

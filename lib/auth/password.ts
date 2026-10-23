@@ -1,7 +1,8 @@
 import bcrypt from "bcryptjs";
+import { MIN_PASSWORD_LENGTH } from "./policy";
 
 export const BCRYPT_COST = 12;
-export const MIN_ADMIN_PASSWORD_LENGTH = 12;
+export const MIN_ADMIN_PASSWORD_LENGTH = MIN_PASSWORD_LENGTH;
 
 const BCRYPT_HASH = /^\$2[aby]\$(\d{2})\$[./A-Za-z0-9]{53}$/;
 

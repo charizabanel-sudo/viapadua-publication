@@ -4,7 +4,7 @@ import { useId } from "react";
 import LoginForm from "@/components/auth/LoginForm";
 import { PublicDialog, ServicesLink, usePublicOverlay } from "@/components/public/PublicOverlayProvider";
 
-export default function AdminLoginMenu() {
+export default function AdminLoginMenu({ userSignInAvailable = false }: { userSignInAvailable?: boolean }) {
   const { active, requestOpen, requestClose } = usePublicOverlay();
   const titleId = useId();
   const open = active === "login";
@@ -18,11 +18,15 @@ export default function AdminLoginMenu() {
           <button type="button" className="login-close" onClick={requestClose} aria-label="Close login"><i className="fas fa-times" aria-hidden="true" /></button>
           <div className="login-card-head">
             <div className="login-logo" aria-hidden="true"><i className="fas fa-church" /></div>
+            <span className="login-role login-role-admin">Parish staff</span>
             <h2 id={titleId}>Admin Sign In</h2>
             <p>Via Padua Parish · authorized staff only</p>
           </div>
           <LoginForm idPrefix="home-admin-" />
-          <p className="login-card-foot">Guest bookings are welcome. <ServicesLink>Book a service</ServicesLink>.</p>
+          <p className="login-card-foot">
+            Guest bookings are welcome. <ServicesLink>Book a service</ServicesLink>.
+            {userSignInAvailable && <><br />Parishioner? <button type="button" className="login-switch" onClick={() => requestOpen("signin")}>Sign in to your account</button></>}
+          </p>
         </div>
       </PublicDialog>
     </>

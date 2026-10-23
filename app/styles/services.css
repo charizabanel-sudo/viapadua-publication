@@ -339,7 +339,7 @@
 /* ===== Visual refresh (coordinated with the homepage; layout and rules unchanged) ===== */
 .vp-services {
     .navbar { height: 66px; box-shadow: 0 4px 14px rgba(4, 16, 36, 0.18); }
-    .logo-icon { box-shadow: 0 4px 10px rgb(215 194 158 / 0.25); }
+    .logo-icon { box-shadow: 0 4px 10px rgb(var(--brand-rgb) / 0.25); }
     .nav-links a { border-radius: 8px; padding: 6px 8px; }
     .nav-links a:hover { background: rgba(255, 255, 255, 0.06); }
     .nav-links a.active { border-radius: 0; }

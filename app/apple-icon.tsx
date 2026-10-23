@@ -11,8 +11,8 @@ const CHURCH_PATH =
 export default function AppleIcon() {
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#f4c928" }}>
-        <svg width="116" height="93" viewBox="0 0 640 512" fill="#09244a">
+      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#123b70" }}>
+        <svg width="116" height="93" viewBox="0 0 640 512" fill="#ffffff">
           <path d={CHURCH_PATH} />
         </svg>
       </div>
