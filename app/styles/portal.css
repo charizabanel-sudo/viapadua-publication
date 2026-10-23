@@ -216,8 +216,8 @@
 .navbar .logo-box {
   display: grid;
   place-items: center;
-  background: var(--champagne);
-  color: var(--brand);
+  background: var(--logo-accent);
+  color: var(--logo-ink);
   border-radius: 10px;
   min-width: 44px;
   height: 44px;

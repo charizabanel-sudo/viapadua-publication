@@ -66,8 +66,8 @@
         height: 60px;
         margin: 0 auto 14px;
         border-radius: 14px;
-        background: var(--champagne);
-        color: var(--brand);
+        background: var(--logo-accent);
+        color: var(--logo-ink);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -117,9 +117,9 @@
     .input-icon-wrap.has-eye input { padding-right: 46px; }
 
     .input-icon-wrap input:focus {
-        border-color: #f2c72b;
+        border-color: var(--brand-hover);
         background: #ffffff;
-        box-shadow: 0 0 0 4px rgba(242, 199, 43, 0.18);
+        box-shadow: 0 0 0 4px rgb(var(--brand-rgb) / 0.18);
     }
 
     .input-icon-wrap input[aria-invalid="true"] { border-color: #f87171; background: #fff8f8; }
@@ -145,7 +145,7 @@
         margin-top: 4px;
         border: none;
         border-radius: 999px;
-        background: var(--champagne);
+        background: var(--accent);
         color: #0a2348;
         font-size: 13px;
         font-weight: 700;
@@ -154,11 +154,11 @@
         align-items: center;
         justify-content: center;
         gap: 8px;
-        box-shadow: 0 6px 16px rgb(215 194 158 / 0.3);
+        box-shadow: 0 6px 16px rgb(var(--accent-rgb) / 0.3);
         transition: background-color 0.2s ease, box-shadow 0.2s ease;
     }
 
-    .btn-signin:hover { background: #e6ba1c; box-shadow: 0 8px 20px rgb(215 194 158 / 0.38); }
+    .btn-signin:hover { background: var(--accent-hover); box-shadow: 0 8px 20px rgb(var(--accent-rgb) / 0.38); }
     .btn-signin:disabled { opacity: 0.75; cursor: wait; }
 
     .form-alert {

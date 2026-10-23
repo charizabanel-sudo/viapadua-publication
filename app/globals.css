@@ -6,17 +6,27 @@
 }
 
 :root {
-    --brand: #571d30;
-    --brand-hover: #713047;
-    --brand-deep: #35141f;
-    --champagne: #d7c29e;
-    --accent-ink: #785a34;
-    --canvas: #f7f3ed;
-    --surface: #fffcf8;
-    --surface-soft: #f1eae1;
-    --ink: #302b29;
-    --muted: #716862;
-    --line: #e2d9ce;
+    --brand: #123b70;
+    --brand-hover: #1c5192;
+    --brand-deep: #092748;
+    --brand-rgb: 18 59 112;
+    --brand-deep-rgb: 9 39 72;
+    --accent: #d9eaff;
+    --accent-hover: #c3dcfa;
+    --accent-rgb: 157 195 237;
+    --on-brand-muted: #d6e5f7;
+    --scrollbar-thumb-on-dark: #92b5dc;
+    /* Existing logo artwork keeps its original palette. */
+    --logo-ink: #571d30;
+    --logo-accent: #d7c29e;
+    --warning-accent: #d7c29e;
+    --accent-ink: #245b95;
+    --canvas: #f5f8fc;
+    --surface: #ffffff;
+    --surface-soft: #edf4fc;
+    --ink: #182c46;
+    --muted: #52657d;
+    --line: #d6e1ee;
     --success: #226649;
     --warning: #805b17;
     --danger: #a52c3c;
@@ -33,11 +43,11 @@
     --space-8: 32px;
     --radius-control: 10px;
     --radius-card: 18px;
-    --shadow-card: 0 4px 20px rgb(58 32 26 / 5%);
-    --shadow-float: 0 24px 64px rgb(58 32 26 / 16%);
-    --focus-ring: 0 0 0 4px rgb(87 29 48 / 13%);
+    --shadow-card: 0 4px 20px rgb(9 30 58 / 5%);
+    --shadow-float: 0 24px 64px rgb(9 30 58 / 16%);
+    --focus-ring: 0 0 0 4px rgb(18 59 112 / 13%);
     --scrollbar-track: var(--canvas);
-    --scrollbar-thumb: #a37b87;
+    --scrollbar-thumb: #6e8eb3;
     --scrollbar-thumb-hover: var(--brand-hover);
 }
 @font-face { font-family: 'Via Padua Editorial'; src: url('/fonts/eb-garamond-latin-400-normal.woff2') format('woff2'); font-weight: 400; font-display: swap; }

@@ -2,7 +2,7 @@
 .public-overlay[hidden], .public-dialog [hidden] { display: none !important; }
 .public-overlay-backdrop { position: absolute; inset: 0; background: rgb(4 16 36 / 65%); backdrop-filter: blur(4px); }
 .public-dialog { position: relative; z-index: 1; max-height: calc(100dvh - 48px); overflow-y: auto; overscroll-behavior: contain; outline: none; animation: vpCardIn .2s ease-out both; }
-.public-dialog :focus-visible { outline: 3px solid #bd9115; outline-offset: 3px; }
+.public-dialog :focus-visible { outline: 3px solid var(--brand-hover); outline-offset: 3px; }
 .public-dialog h3[tabindex="-1"]:focus { outline: none; }
 .public-dialog.login-card-workspace { position: relative; inset: auto; z-index: auto; display: block; padding: 0; width: min(460px, 100%); }
 .public-dialog.login-card-workspace .login-card { width: 100%; max-height: none; }
