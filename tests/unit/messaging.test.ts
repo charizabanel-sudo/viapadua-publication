@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { describe, it } from "node:test";
 import { createGuestCredential, GUEST_SESSION_TTL_MS, hashGuestCredential } from "@/lib/messaging/store";
-import { adminActionSchema, guestActionSchema, isSameOriginMutation, parseBefore } from "@/lib/messaging/validation";
+import { accountActionSchema, adminActionSchema, chatActionIssue, guestActionSchema, isSameOriginMutation, parseBefore } from "@/lib/messaging/validation";
 
 describe("guest messaging validation and credentials", () => {
   const send = { op: "send", displayName: "Ana Reyes", contact: "", text: "Hello, parish office.", clientMessageId: randomUUID() };
@@ -31,6 +31,18 @@ describe("guest messaging validation and credentials", () => {
     assert.equal(guestActionSchema.safeParse({ op: "read", messageId: 0 }).success, false);
     assert.equal(parseBefore("100"), 100);
     assert.throws(() => parseBefore("1 OR 1=1"));
+  });
+
+  it("keeps account sends free of guest identity fields and reports field-specific corrections", () => {
+    const account = { op: "send", text: "Hello from my account.", clientMessageId: randomUUID() };
+    assert.ok(accountActionSchema.safeParse(account).success, "first account message needs no display name");
+    assert.ok(accountActionSchema.safeParse({ ...account, accountName: "Ana Reyes" }).success);
+    for (const invalid of [{ displayName: "Impostor" }, { userId: 1 }, { contact: "x@example.invalid" }, { accountName: "A" }, { accountName: "Ana\nAdmin" }]) assert.equal(accountActionSchema.safeParse({ ...account, ...invalid }).success, false);
+    const blankGuest = guestActionSchema.safeParse({ ...send, displayName: "" });
+    assert.equal(blankGuest.success, false);
+    assert.deepEqual(chatActionIssue(blankGuest.error!), { code: "display_name_required", message: "Enter your display name." });
+    assert.equal(chatActionIssue(accountActionSchema.safeParse({ ...account, accountName: "A" }).error!).code, "account_name_required");
+    assert.equal(chatActionIssue(guestActionSchema.safeParse({ ...send, text: " " }).error!).code, "invalid_message");
   });
 
   it("requires the exact browser origin for writes", () => {

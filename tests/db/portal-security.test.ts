@@ -236,6 +236,27 @@ describe(
       );
       assert.equal((await getAccountChat(db, a, context.secret)).unread, 0);
     });
+    it("first account message uses the stored account name and asks explicitly when it is missing", async () => {
+      const first = await performAccountAction(db, a, { op: "send", text: "First message", clientMessageId: randomUUID() }, context);
+      assert.equal(first.thread!.displayName, "Account A");
+      assert.equal(first.thread!.contact, "a@example.invalid");
+      // A stale session copy cannot override the stored identity.
+      const forged = await performAccountAction(db, { ...b, name: "Forged Name" }, { op: "send", text: "B first", clientMessageId: randomUUID() }, context);
+      assert.equal(forged.thread!.displayName, "Account B");
+      await db.user.update({ where: { id: b.id }, data: { fullname: " " } });
+      await db.guestChatMessage.deleteMany({ where: { conversation: { userId: b.id } } });
+      await db.guestConversation.deleteMany({ where: { userId: b.id } });
+      const blank = { ...b, name: " " };
+      assert.equal((await getAccountChat(db, blank, context.secret)).account?.nameRequired, true);
+      const attempt = { op: "send" as const, text: "Needs a name", clientMessageId: randomUUID() };
+      await assert.rejects(performAccountAction(db, blank, attempt, context), (error: unknown) => (error as { code?: string }).code === "account_name_required");
+      assert.equal(await db.guestConversation.count({ where: { userId: b.id } }), 0, "a rejected send stores nothing and never falls back to guest");
+      const named = await performAccountAction(db, blank, { ...attempt, accountName: "Bea Santos" }, context);
+      assert.equal(named.thread!.displayName, "Bea Santos");
+      assert.equal((await db.user.findUniqueOrThrow({ where: { id: b.id } })).fullname, "Bea Santos");
+      await performAccountAction(db, a, { op: "send", text: "Not a rename", clientMessageId: randomUUID(), accountName: "Changed" }, context);
+      assert.equal((await db.user.findUniqueOrThrow({ where: { id: a.id } })).fullname, "Account A", "existing names are never changed from chat");
+    });
     it("links guest history only with its credential and explicit authorized operation", async () => {
       const credential = (await bootstrapGuestSession(db, undefined, context))!;
       const sent = await performGuestAction(

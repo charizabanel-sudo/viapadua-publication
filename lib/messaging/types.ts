@@ -24,6 +24,8 @@ export type ChatSnapshot = {
   unread: number;
   hasMore: boolean;
   nextBefore: number | null;
+  /** Account chat only: the signed-in account has no usable name yet. */
+  account?: { nameRequired: boolean };
 };
 
 export type ConversationSummary = {
@@ -62,6 +64,10 @@ export type ChatFailure = { ok: false; error: string; code: string; retryAfter?:
 
 export type GuestChatAction =
   | { op: "send"; text: string; clientMessageId: string; displayName?: string; contact?: string; conversationId?: string }
+  | { op: "read"; messageId: number; conversationId?: string };
+
+export type AccountChatAction =
+  | { op: "send"; text: string; clientMessageId: string; accountName?: string; conversationId?: string }
   | { op: "read"; messageId: number; conversationId?: string };
 
 export type AdminChatAction =

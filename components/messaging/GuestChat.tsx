@@ -39,15 +39,21 @@ export default function GuestChat({
   const pathname = usePathname();
   const open = active === "chat" && !pathname.startsWith("/admin");
   const titleId = useId();
+  const sendErrorId = useId();
   const [snapshot, setSnapshot] = useState<ChatSnapshot | null>(null);
   const [messages, setMessages] = useState<ChatMessageDto[]>([]);
   const [displayName, setDisplayName] = useState("");
   const [contact, setContact] = useState("");
+  const [accountName, setAccountName] = useState("");
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const [sendError, setSendError] = useState("");
+  const [sendError, setSendError] = useState<{
+    text: string;
+    code: string;
+    rejected: boolean;
+  } | null>(null);
   const [older, setOlder] = useState<{
     hasMore: boolean;
     before: number | null;
@@ -61,12 +67,32 @@ export default function GuestChat({
   const bodyRef = useRef<HTMLDivElement>(null);
   const shouldScrollRef = useRef(true);
   const dirtyRef = useRef(false);
+  const displayNameRef = useRef<HTMLInputElement>(null);
+  const accountNameRef = useRef<HTMLInputElement>(null);
+  const needsAccountName = Boolean(
+    accountUserId &&
+    !snapshot?.thread &&
+    (snapshot?.account?.nameRequired ||
+      sendError?.code === "account_name_required"),
+  );
+  const nameError =
+    sendError?.code ===
+    (accountUserId ? "account_name_required" : "display_name_required");
   useEffect(() => {
     dirtyRef.current = Boolean(
       draft.trim() ||
-      (!snapshot?.thread && (displayName.trim() || contact.trim())),
+      (!snapshot?.thread &&
+        (displayName.trim() || contact.trim() || accountName.trim())),
     );
-  }, [draft, displayName, contact, snapshot?.thread]);
+  }, [draft, displayName, contact, accountName, snapshot?.thread]);
+  // Move focus to the field the server asked the sender to correct.
+  useEffect(() => {
+    if (!sendError?.rejected) return;
+    if (sendError.code === "display_name_required")
+      displayNameRef.current?.focus();
+    if (sendError.code === "account_name_required")
+      accountNameRef.current?.focus();
+  }, [sendError]);
 
   useEffect(
     () =>
@@ -221,7 +247,7 @@ export default function GuestChat({
     if (!snapshot || sendingRef.current || !draft.trim()) return;
     sendingRef.current = true;
     setSending(true);
-    setSendError("");
+    setSendError(null);
     const text = draft.trim();
     const attempt =
       attemptRef.current?.text === text
@@ -229,13 +255,21 @@ export default function GuestChat({
         : { text, id: crypto.randomUUID() };
     attemptRef.current = attempt;
     try {
+      // Signed-in senders are identified by their session; guest fields are never sent for them.
+      const identity = accountUserId
+        ? { accountName: needsAccountName ? accountName.trim() : undefined }
+        : snapshot.thread
+          ? {}
+          : {
+              displayName: displayName.trim(),
+              contact: contact.trim() || undefined,
+            };
       const data = await chatRequest<ChatSnapshot>(endpoint, {
         op: "send",
         text,
         clientMessageId: attempt.id,
-        displayName: snapshot?.thread ? undefined : displayName.trim(),
-        contact: snapshot?.thread ? undefined : contact.trim(),
-        conversationId: snapshot?.thread?.id,
+        conversationId: snapshot.thread?.id,
+        ...identity,
       });
       setSnapshot(data);
       shouldScrollRef.current = true;
@@ -249,11 +283,16 @@ export default function GuestChat({
           : previous,
       );
     } catch (problem) {
-      setSendError(
-        problem instanceof Error
-          ? problem.message
-          : "Your message was not confirmed. Please retry.",
-      );
+      if (problem instanceof ChatHttpError && problem.status === 401)
+        authExpiredRef.current = true;
+      setSendError({
+        text:
+          problem instanceof Error
+            ? problem.message
+            : "Your message was not confirmed. Please retry.",
+        code: problem instanceof ChatHttpError ? problem.code : "unavailable",
+        rejected: problem instanceof ChatHttpError && problem.rejected,
+      });
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -385,12 +424,18 @@ export default function GuestChat({
               <label>
                 Your display name
                 <input
+                  ref={displayNameRef}
                   name="displayName"
                   value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
+                  onChange={(event) => {
+                    setDisplayName(event.target.value);
+                    if (nameError) setSendError(null);
+                  }}
                   maxLength={80}
                   required
                   autoComplete="name"
+                  aria-invalid={nameError || undefined}
+                  aria-describedby={nameError ? sendErrorId : undefined}
                   disabled={sending}
                 />
               </label>
@@ -407,6 +452,33 @@ export default function GuestChat({
               </label>
             </div>
           )}
+          {needsAccountName && (
+            <div className="chat-identity">
+              <label>
+                Your full name
+                <input
+                  ref={accountNameRef}
+                  name="accountName"
+                  value={accountName}
+                  onChange={(event) => {
+                    setAccountName(event.target.value);
+                    if (nameError) setSendError(null);
+                  }}
+                  minLength={2}
+                  maxLength={100}
+                  required
+                  autoComplete="name"
+                  aria-invalid={nameError || undefined}
+                  aria-describedby={nameError ? sendErrorId : undefined}
+                  disabled={sending}
+                />
+              </label>
+              <small>
+                Your account has no name yet. It is saved to your account and
+                shown to the parish office.
+              </small>
+            </div>
+          )}
           <label htmlFor="guest-chat-message">Your message</label>
           <textarea
             id="guest-chat-message"
@@ -414,7 +486,7 @@ export default function GuestChat({
             value={draft}
             onChange={(event) => {
               setDraft(event.target.value);
-              setSendError("");
+              if (!nameError) setSendError(null);
             }}
             maxLength={2000}
             required
@@ -431,7 +503,7 @@ export default function GuestChat({
             >
               {sending
                 ? "Sending…"
-                : sendError
+                : sendError && !sendError.rejected
                   ? "Retry message"
                   : "Send message"}
             </button>
@@ -442,8 +514,9 @@ export default function GuestChat({
             </span>
           )}
           {sendError && (
-            <p className="chat-error" role="alert">
-              {sendError} Your draft is kept. Retry to confirm delivery.
+            <p className="chat-error" role="alert" id={sendErrorId}>
+              {sendError.text} Your draft is kept.
+              {!sendError.rejected && " Retry to confirm delivery."}
             </p>
           )}
         </form>

@@ -6,10 +6,24 @@ export const messageTextSchema = z.string().trim().min(1, "Enter a message.").ma
 const conversationId = z.uuid();
 const messageId = z.number().int().positive().max(2147483647);
 
+const readAction = z.object({ op: z.literal("read"), messageId, conversationId: conversationId.optional() }).strict();
 export const guestActionSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("send"), text: messageTextSchema, clientMessageId: z.uuid(), displayName: singleLine(80).min(1, "Enter your display name.").optional(), contact: singleLine(120).optional(), conversationId: conversationId.optional() }).strict(),
-  z.object({ op: z.literal("read"), messageId, conversationId: conversationId.optional() }).strict(),
+  readAction,
 ]);
+
+/** Signed-in senders are identified by their session; `accountName` only fills a blank account name. */
+export const accountActionSchema = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("send"), text: messageTextSchema, clientMessageId: z.uuid(), accountName: singleLine(100).min(2, "Enter your full name (at least 2 characters).").optional(), conversationId: conversationId.optional() }).strict(),
+  readAction,
+]);
+
+/** Field-specific codes let the browser point at the exact correction instead of suggesting a lost delivery. */
+const issueCodes: Record<string, string> = { displayName: "display_name_required", contact: "invalid_contact", accountName: "account_name_required", text: "invalid_message" };
+export function chatActionIssue(error: z.ZodError): { code: string; message: string } {
+  const issue = error.issues[0];
+  return { code: issueCodes[String(issue?.path[0] ?? "")] ?? "invalid_message", message: issue?.message ?? "Check your message." };
+}
 
 export const adminActionSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("reply"), conversationId, text: messageTextSchema, clientMessageId: z.uuid() }).strict(),

@@ -231,6 +231,18 @@ try {
   assert.equal(guestMessage.status(), 200);
   await register(a, "Account A", "browser-a@example.invalid");
   await register(b, "Account B", "browser-b@example.invalid");
+  // A fresh account with no guest history sends its first message from the real chat UI.
+  await b.goto(base + "/portal?chat=1");
+  assert.equal(await b.locator('.guest-chat-dialog [name="displayName"]').count(), 0);
+  await b.locator("#guest-chat-message").fill("First account message from the UI");
+  await b.locator(".chat-send").click();
+  await b.locator(".chat-bubble p", { hasText: "First account message from the UI" }).waitFor();
+  assert.equal(await b.locator(".chat-compose .chat-error").count(), 0);
+  const firstAccountThread = await api(userB, "/api/chat?account=1");
+  assert.equal(firstAccountThread.thread.displayName, "Account B");
+  await b.reload();
+  await b.locator(".chat-bubble p", { hasText: "First account message from the UI" }).waitFor();
+  assert.equal((await userA.request.get(base + "/api/chat?account=1&conversationId=" + firstAccountThread.thread.id)).status(), 404);
   assert.equal((await api(userA, "/api/chat?account=1")).thread, null);
   await a.goto(base + "/portal?tab=messages");
   await a

@@ -8,6 +8,8 @@ import {
   performGuestAction,
 } from "@/lib/messaging/store";
 import {
+  accountActionSchema,
+  chatActionIssue,
   guestActionSchema,
   isSameOriginMutation,
   parseBefore,
@@ -92,20 +94,29 @@ export async function GET(request: Request) {
   }
 }
 
+function invalidAction(error: Parameters<typeof chatActionIssue>[0]) {
+  const issue = chatActionIssue(error);
+  return new MessagingError(issue.code, issue.message);
+}
+
 export async function POST(request: Request) {
   try {
-    const parsed = guestActionSchema.safeParse(
-      await readMessagingBody(request),
-    );
-    if (!parsed.success)
-      throw new MessagingError(
-        "invalid_message",
-        parsed.error.issues[0]?.message ?? "Check your message.",
-      );
+    const body = await readMessagingBody(request);
     if (new URL(request.url).searchParams.get("account") === "1") {
       const user = await getCurrentUser();
       if (!user)
         throw new MessagingError("unauthorized", "Please sign in again.", 401);
+      // Guest identity fields from older cached pages are ignored, never trusted, for signed-in senders.
+      const accountBody =
+        body && typeof body === "object" && !Array.isArray(body)
+          ? { ...(body as Record<string, unknown>) }
+          : body;
+      if (accountBody && typeof accountBody === "object") {
+        delete (accountBody as Record<string, unknown>).displayName;
+        delete (accountBody as Record<string, unknown>).contact;
+      }
+      const parsed = accountActionSchema.safeParse(accountBody);
+      if (!parsed.success) throw invalidAction(parsed.error);
       return messagingJson(
         await performAccountAction(getDb(), user, parsed.data, {
           ip: await getClientIp(),
@@ -113,6 +124,8 @@ export async function POST(request: Request) {
         }),
       );
     }
+    const parsed = guestActionSchema.safeParse(body);
+    if (!parsed.success) throw invalidAction(parsed.error);
     const store = await cookies();
     const { snapshot, credential } = await performGuestAction(
       getDb(),

@@ -1,6 +1,6 @@
 import { createHmac, randomUUID } from "node:crypto";
 import type { Db } from "@/lib/db/client";
-import type { GuestChatAction } from "./types";
+import type { AccountChatAction } from "./types";
 import {
   getGuestChat,
   hashGuestCredential,
@@ -12,12 +12,15 @@ const tokenFor = (userId: number, threadId: string, secret: string) =>
     .update(`account-chat:${userId}:${threadId}`)
     .digest("base64url");
 const expiresAt = () => new Date("9999-01-01T00:00:00Z");
+const ACCOUNT_NAME_REQUIRED =
+  "Add your full name to your account so the parish office knows who is writing.";
+export const hasUsableAccountName = (name: string) => name.trim().length >= 2;
 async function accountThread(
   db: Db,
   user: { id: number; name: string; email: string },
   secret: string,
   id?: string,
-  create = false,
+  create?: { accountName?: string },
 ) {
   return db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`account-chat:${user.id}`}))`;
@@ -28,6 +31,29 @@ async function accountThread(
     if (id && !thread)
       throw new MessagingError("not_found", "Conversation unavailable.", 404);
     if (!thread && create) {
+      // Identity comes from the stored account, never from client-supplied guest fields.
+      const account = await tx.user.findUniqueOrThrow({
+        where: { id: user.id },
+        select: { fullname: true, email: true },
+      });
+      let name = account.fullname.trim();
+      if (!hasUsableAccountName(name)) {
+        if (!create.accountName)
+          throw new MessagingError("account_name_required", ACCOUNT_NAME_REQUIRED);
+        // Only a blank account name may be filled here; this is not a rename path.
+        await tx.user.update({
+          where: { id: user.id },
+          data: { fullname: create.accountName },
+        });
+        await tx.portalAudit.create({
+          data: {
+            action: "account_name_set_from_chat",
+            targetId: String(user.id),
+            userId: user.id,
+          },
+        });
+        name = create.accountName;
+      }
       const uuid = randomUUID(),
         token = tokenFor(user.id, uuid, secret);
       await tx.guestChatSession.create({
@@ -38,8 +64,8 @@ async function accountThread(
           id: uuid,
           userId: user.id,
           sessionId: hashGuestCredential(token),
-          displayName: user.name.slice(0, 80),
-          contact: user.email.slice(0, 120),
+          displayName: name.slice(0, 80),
+          contact: account.email.slice(0, 120),
         },
       });
     }
@@ -75,6 +101,7 @@ export async function getAccountChat(
       unread: 0,
       hasMore: false,
       nextBefore: null,
+      account: { nameRequired: !hasUsableAccountName(user.name) },
     };
   return getGuestChat(db, thread.token, {
     conversationId: thread.id,
@@ -85,7 +112,7 @@ export async function getAccountChat(
 export async function performAccountAction(
   db: Db,
   user: { id: number; name: string; email: string },
-  action: GuestChatAction,
+  action: AccountChatAction,
   context: { ip: string; secret: string },
 ) {
   const thread = await accountThread(
@@ -93,7 +120,7 @@ export async function performAccountAction(
     user,
     context.secret,
     action.conversationId,
-    action.op === "send",
+    action.op === "send" ? { accountName: action.accountName } : undefined,
   );
   if (!thread)
     throw new MessagingError("not_found", "Conversation unavailable.", 404);
@@ -101,7 +128,14 @@ export async function performAccountAction(
     await performGuestAction(
       db,
       thread.token,
-      { ...action, conversationId: thread.id },
+      action.op === "send"
+        ? {
+            op: "send",
+            text: action.text,
+            clientMessageId: action.clientMessageId,
+            conversationId: thread.id,
+          }
+        : { ...action, conversationId: thread.id },
       { ...context, userId: user.id },
     )
   ).snapshot;
