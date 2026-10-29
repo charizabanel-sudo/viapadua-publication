@@ -99,7 +99,7 @@
         transition: transform 0.2s ease, box-shadow 0.2s ease;
         display: flex;
         flex-direction: column;
-        align-items: center;      /* ensures photo and text are centered */
+        align-items: center;
         justify-content: flex-start;
     }
 
@@ -118,7 +118,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 34px;          /* for fallback letter */
+        font-size: 34px;
         font-weight: 700;
         overflow: hidden;
         border: 3px solid #ffffff;
@@ -129,8 +129,8 @@
     .developer-photo img {
         width: 100%;
         height: 100%;
-        object-fit: cover;        /* ensures image covers without distortion */
-        display: block;           /* removes extra spacing */
+        object-fit: cover;
+        display: block;
     }
 
     .developer-name {
@@ -181,7 +181,7 @@
         margin: auto;
         border-radius: 50%;
         background: var(--accent);
-        color: #253b57;
+        color: var(--brand);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -235,20 +235,48 @@
         font-weight: bold;
         text-decoration: none;
     }
-
-
 }
 .vp-home .about-section { scroll-margin-top: 90px; background: var(--surface); padding: 72px 24px; }
 .vp-home .about-content h2, .vp-home .section-title h2, .vp-home .contact-title h2 { font-family: var(--font-heading); font-size: clamp(34px, 4vw, 48px); line-height: 1.15; font-weight: 600; color: var(--brand); letter-spacing: -.7px; }
 .vp-home .about-badge { font-size: 11px; background: var(--surface-soft); color: var(--brand); letter-spacing: .12em; }
 .vp-home .church-info { background: var(--canvas); border-left-color: var(--accent); }
 .vp-home .developer-card { box-shadow: none; border-color: var(--line); background: var(--canvas); border-radius: var(--radius-card); }
-.vp-home .hero { isolation: isolate; position: relative; overflow: clip; background: var(--brand-deep); color: white; }
-.vp-home .hero-bg { position: absolute; inset: -2% 0; z-index: -1; pointer-events: none; }
-.vp-home .hero-photo { object-fit: cover; object-position: center 38%; opacity: .28; filter: saturate(.4); }
-.vp-home .hero-overlay { position: absolute; inset: 0; background: linear-gradient(100deg, rgb(var(--brand-deep-rgb) / 98%) 0%, rgb(var(--brand-rgb) / 83%) 55%, rgb(var(--brand-deep-rgb) / 68%) 100%); }
-.vp-home .hero-pattern { position: absolute; inset: 0; background: repeating-linear-gradient(125deg, transparent 0 68px, rgb(var(--accent-rgb) / 3%) 69px 70px); }
-.hero-layout { width: min(1240px, 100%); margin: auto; padding: 80px 40px 88px; min-height: 650px; display: grid; grid-template-columns: 1.15fr 1fr; align-items: center; gap: 48px; }
+
+/* ===== HERO SECTION - UPDATED FOR FULL CLEAR IMAGE ===== */
+.vp-home .hero {
+    isolation: isolate;
+    position: relative;
+    overflow: hidden; /* changed from clip to hidden for better image containment */
+    background: var(--brand-deep); /* Navy base background if image doesn't stretch */
+    color: white;
+}
+.vp-home .hero-bg {
+    position: absolute;
+    inset: 0; /* Removed -2% to keep it perfectly aligned */
+    z-index: -1;
+    pointer-events: none;
+}
+.vp-home .hero-photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Switched to cover so it fills the whole hero nicely without white gaps */
+    object-position: center; /* Centers the image */
+    opacity: 0.9; /* Much clearer image, almost fully visible */
+    filter: none; /* Removed the greying filter */
+}
+.vp-home .hero-overlay {
+    position: absolute;
+    inset: 0;
+    /* Much lighter gradient so the photo is clear, only dark enough on the left for text readability */
+    background: linear-gradient(90deg, rgba(7,31,66, 0.85) 0%, rgba(7,31,66, 0.5) 40%, rgba(7,31,66, 0.1) 100%);
+}
+.vp-home .hero-pattern {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(125deg, transparent 0 68px, rgb(var(--accent-rgb) / 3%) 69px 70px);
+}
+
+.hero-layout { width: min(1240px, 100%); margin: auto; padding: 80px 40px 88px; min-height: 650px; display: grid; grid-template-columns: 1.15fr 1fr; align-items: center; gap: 48px; position: relative; z-index: 1; }
 .hero-content { min-width: 0; max-width: 590px; }
 .hero-eyebrow { display: inline-flex; align-items: center; gap: 12px; font-size: 10px; text-transform: uppercase; letter-spacing: .22em; color: var(--accent); font-weight: 600; }
 .hero-eyebrow::before { content: ''; width: 26px; height: 1px; background: var(--accent); }

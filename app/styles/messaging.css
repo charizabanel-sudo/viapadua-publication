@@ -1,20 +1,20 @@
 .guest-chat-launcher { position: fixed; right: 24px; bottom: 24px; z-index: 1100; display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 13px 20px; border: 2px solid var(--accent); border-radius: 30px; background: var(--brand); color: white; font: 700 14px system-ui, sans-serif; cursor: pointer; box-shadow: 0 6px 20px rgb(7 31 66 / 25%); }
 .guest-chat-launcher i { color: var(--accent); font-size: 21px; }
-.guest-chat-launcher:hover { background: #13375e; }
-.guest-chat-launcher:focus-visible, .chat-compose :focus-visible, .messages-inbox :focus-visible { outline: 3px solid var(--brand-hover); outline-offset: 3px; }
-.message-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; padding: 3px 7px; border-radius: 12px; color: var(--ink); background: var(--accent); font-size: 11px; font-weight: 800; line-height: 1.25; white-space: nowrap; }
+.guest-chat-launcher:hover { background: var(--brand-hover); }
+.guest-chat-launcher:focus-visible, .chat-compose :focus-visible, .messages-inbox :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.message-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; padding: 3px 7px; border-radius: 12px; color: var(--brand); background: var(--accent); font-size: 11px; font-weight: 800; line-height: 1.25; white-space: nowrap; }
 .public-dialog.guest-chat-dialog { display: flex; flex-direction: column; width: min(500px, 100%); height: min(760px, calc(100dvh - 48px)); border-radius: 18px; background: #fff; overflow: hidden; box-shadow: 0 20px 64px rgb(0 0 0 / 30%); }
 .chat-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 22px; background: var(--brand); color: #fff; }
 .chat-header h2 { margin: 0 0 4px; font-size: 21px; }
-.chat-header p { margin: 0; color: #d4dfed; font-size: 16px; line-height: 1.5; }
+.chat-header p { margin: 0; color: var(--on-brand-muted); font-size: 16px; line-height: 1.5; }
 .chat-close { min-width: 36px; min-height: 36px; border: 1px solid #64758c; border-radius: 50%; background: transparent; color: white; font: 24px/1 system-ui, sans-serif; cursor: pointer; }
 .chat-session-note { flex-shrink: 0; padding: 12px 18px; background: #f4f7fa; border-bottom: 1px solid #e2e8ef; color: #526177; font-size: 16px; line-height: 1.5; margin: 0; }
-.chat-history { flex: 1; min-height: 100px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px; padding: 18px; background: #f7f9fc; }
+.chat-history { flex: 1; min-height: 100px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px; padding: 18px; background: var(--canvas); }
 .chat-empty { padding: 24px 16px; text-align: center; color: #68778b; font-size: 16px; line-height: 1.6; margin: auto 0; }
 .chat-empty h2 { color: var(--ink); font-size: 20px; margin: 10px 0 4px; }
 .chat-empty i { color: var(--accent-ink); font-size: 38px; }
 .chat-bubble { flex-shrink: 0; max-width: 90%; min-width: 100px; padding: 11px 14px; border-radius: 12px; overflow-wrap: anywhere; font-size: 16px; line-height: 1.5; }
-.chat-bubble.guest { align-self: flex-end; background: var(--ink); color: #fff; border-bottom-right-radius: 3px; }
+.chat-bubble.guest { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 3px; }
 .chat-bubble.admin { align-self: flex-start; background: #fff; color: var(--ink); border: 1px solid #dce4ee; border-bottom-left-radius: 3px; }
 .chat-bubble strong { display: block; font-size: 16px; margin-bottom: 4px; }
 .chat-bubble.guest strong { color: var(--accent); }
@@ -29,11 +29,11 @@
 .chat-identity label span { font-weight: 400; }
 .chat-compose-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 10px; }
 .chat-compose-footer small { font-size: 16px; color: #68778b; }
-.chat-send { min-height: 42px; padding: 9px 18px; border: 0; border-radius: 9px; background: var(--accent); color: #0b2546; font: 700 14px system-ui, sans-serif; cursor: pointer; }
+.chat-send { min-height: 42px; padding: 9px 18px; border: 0; border-radius: 9px; background: var(--accent); color: var(--brand); font: 700 14px system-ui, sans-serif; cursor: pointer; }
 .chat-send:hover { background: var(--brand-hover); }
 .chat-send:disabled { opacity: .55; cursor: not-allowed; }
 .chat-error { padding: 10px 14px; margin: 0; background: #fff2f2; color: #a82231; font-size: 16px; line-height: 1.5; }
-.chat-error button, .chat-text-button { border: 0; background: transparent; color: #204f88; text-decoration: underline; font: 600 13px/1.5 system-ui, sans-serif; cursor: pointer; padding: 5px; }
+.chat-error button, .chat-text-button { border: 0; background: transparent; color: var(--brand); text-decoration: underline; font: 600 13px/1.5 system-ui, sans-serif; cursor: pointer; padding: 5px; }
 .chat-send-status { display: block; padding-top: 6px; color: #526177; font-size: 16px; }
 .messages-inbox { display: grid; grid-template-columns: minmax(240px, 32%) minmax(0, 1fr); min-height: 560px; height: min(760px, 78dvh); border: 1px solid #dce4ee; border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 3px 12px rgb(30 50 80 / 5%); }
 .inbox-list { overflow-y: auto; border-right: 1px solid #dce4ee; min-width: 0; }
@@ -41,7 +41,7 @@
 .inbox-list h2, .inbox-thread-header h2 { font-size: 18px; color: var(--ink); line-height: 1.4; margin: 0; }
 .inbox-thread { width: 100%; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; border: 0; border-bottom: 1px solid #e8edf3; background: #fff; text-align: left; color: var(--ink); cursor: pointer; padding: 15px 16px; font-family: inherit; }
 .inbox-thread:hover { background: #f7f9fc; }
-.inbox-thread.selected { background: var(--surface-soft); box-shadow: inset 4px 0 var(--brand); }
+.inbox-thread.selected { background: var(--surface-soft); box-shadow: inset 4px 0 var(--accent); }
 .inbox-thread strong { display: block; font-size: 16px; overflow-wrap: anywhere; }
 .inbox-thread small, .inbox-thread time { display: block; margin-top: 4px; font-size: 12px; color: #68778b; overflow-wrap: anywhere; }
 .inbox-conversation { min-width: 0; display: flex; flex-direction: column; overflow: hidden; }

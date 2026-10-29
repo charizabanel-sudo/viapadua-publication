@@ -10,7 +10,7 @@
   --scrollbar-track: var(--brand-deep); --scrollbar-thumb: var(--scrollbar-thumb-on-dark);
 }
 .portal-user { display: flex; align-items: center; gap: 10px; padding: 2px 6px 14px; border-bottom: 1px solid rgb(255 255 255 / 12%); min-width: 0; }
-.portal-avatar { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--logo-accent); color: var(--logo-ink); font-weight: 700; font-size: 15px; }
+.portal-avatar { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: var(--brand); font-weight: 700; font-size: 15px; }
 .portal-user-text { display: grid; min-width: 0; }
 .portal-user-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .portal-user-text small { color: var(--on-brand-muted); font-size: 12px; }
@@ -18,7 +18,7 @@
 .portal-nav-item { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 9px 12px; border-radius: var(--radius-control); color: var(--on-brand-muted); text-decoration: none; font-size: 14px; line-height: 1.3; font-weight: 500; transition: background-color .15s ease, color .15s ease; }
 .portal-nav-item i { width: 18px; flex-shrink: 0; text-align: center; }
 .portal-nav-item:hover { background: rgb(255 255 255 / 9%); color: var(--surface); }
-.portal-nav-item.active { background: var(--surface); color: var(--brand); font-weight: 600; }
+.portal-nav-item.active { background: var(--accent); color: var(--brand); font-weight: 600; }
 .portal-sidebar :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .portal-book-wrap { display: contents; }
 .portal-sidebar-foot { display: grid; gap: 8px; margin-top: auto; padding-top: 14px; border-top: 1px solid rgb(255 255 255 / 12%); }
@@ -40,13 +40,12 @@
 
 @media (max-width: 900px) {
   .portal-shell { display: block; min-height: 0; }
-  /* Sticks just below the (sticky) site navbar so the menu stays reachable without covering content. */
   .portal-mobilebar { position: sticky; top: var(--portal-bar-top, 0px); z-index: 90; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
   .portal-menu-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-soft); color: var(--brand); font: 600 14px/1.2 var(--font-body); cursor: pointer; }
   .portal-mobile-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 600; font-size: 15px; }
   .portal-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 1150; width: min(300px, 86vw); height: 100dvh; top: 0; transform: translateX(-105%); visibility: hidden; transition: transform .22s ease, visibility 0s linear .22s; box-shadow: var(--shadow-float); }
   .portal-shell.drawer-open .portal-sidebar { transform: none; visibility: visible; transition: transform .22s ease; }
-  .portal-shell.drawer-open .portal-drawer-backdrop { display: block; position: fixed; inset: 0; z-index: 1140; background: rgb(var(--brand-deep-rgb) / 55%); }
+  .portal-shell.drawer-open .portal-drawer-backdrop { display: block; position: fixed; inset: 0; z-index: 1140; background: rgb(7 31 66 / 55%); }
   .portal-main.portal-content { padding: 20px 16px 110px; }
 }
 @media (prefers-reduced-motion: reduce) { .portal-sidebar { transition: none !important; } }
@@ -56,44 +55,44 @@
 .cal-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow-card); padding: 22px; min-width: 0; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .cal-head h2, .cal-agenda-head h2, .cal-legend h2 { display: flex; align-items: center; gap: 10px; font-size: 19px !important; color: var(--ink); margin: 0; }
-.cal-head h2 i, .cal-agenda-head h2 i { color: var(--brand-hover); }
+.cal-head h2 i, .cal-agenda-head h2 i { color: var(--accent-ink); }
 .cal-nav { display: flex; align-items: center; gap: 8px; }
 .cal-nav-btn, .cal-nav-today { display: inline-grid; place-items: center; min-width: 44px; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--brand); text-decoration: none; font-weight: 600; font-size: 14px; }
-.cal-nav-btn:hover, .cal-nav-today:hover { background: var(--surface-soft); border-color: var(--brand); }
+.cal-nav-btn:hover, .cal-nav-today:hover { background: var(--surface-soft); border-color: var(--accent); }
 .cal-grid { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 6px; margin: -6px; width: calc(100% + 12px); }
 .cal-grid th { padding: 4px 0; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .cal-grid td { padding: 0; }
 .cal-day { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 100%; aspect-ratio: 1 / 1; min-height: 44px; padding: 4px; border: 2px solid transparent; border-radius: 12px; background: var(--surface-soft); color: var(--ink); font: 500 16px/1 var(--font-body); cursor: pointer; transition: background-color .15s ease, border-color .15s ease; }
-.cal-day:hover { border-color: var(--brand-hover); background: var(--accent); }
-.cal-day:focus-visible { outline: 3px solid var(--brand-hover); outline-offset: 2px; }
-.cal-day.today { border-color: var(--brand); background: var(--surface); font-weight: 700; color: var(--brand); box-shadow: inset 0 0 0 2px var(--accent); }
+.cal-day:hover { border-color: var(--accent); background: var(--accent); }
+.cal-day:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.cal-day.today { border-color: var(--accent); background: var(--surface); font-weight: 700; color: var(--brand); box-shadow: inset 0 0 0 2px var(--accent); }
 .cal-day.past { color: #8a97a8; background: #f3f5f8; }
 .cal-day.closed, .cal-day.blocked, .cal-day.too_far { background: repeating-linear-gradient(135deg, #f3f6fa 0 6px, #e6ecf3 6px 8px); color: #5f6f83; }
 .cal-day.blocked { box-shadow: inset 0 0 0 1px #b9c7d8; }
-.cal-day.selected { background: var(--brand); border-color: var(--brand); color: var(--surface); }
-.cal-day.selected .dot.mine { background: var(--surface); }
-.cal-day.selected .dot.event { box-shadow: 0 0 0 2px var(--surface); }
+.cal-day.selected { background: var(--accent); border-color: var(--accent); color: var(--brand); }
+.cal-day.selected .dot.mine { background: var(--brand); }
+.cal-day.selected .dot.event { box-shadow: 0 0 0 2px var(--brand); }
 .cal-dots { display: flex; align-items: center; gap: 4px; min-height: 8px; }
 .cal-dots .dot, .swatch { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
-.dot.mine, .swatch.mine { background: var(--brand-deep); }
-.dot.event, .swatch.event { background: #4f8fd8; }
-.cal-count { position: absolute; top: 3px; right: 4px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--brand); color: var(--surface); font-size: 10px; font-weight: 700; line-height: 18px; }
-.cal-day.selected .cal-count { background: var(--surface); color: var(--brand); }
+.dot.mine, .swatch.mine { background: var(--accent-ink); }
+.dot.event, .swatch.event { background: var(--blue-muted); }
+.cal-count { position: absolute; top: 3px; right: 4px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--accent); color: var(--brand); font-size: 10px; font-weight: 700; line-height: 18px; }
+.cal-day.selected .cal-count { background: var(--brand); color: var(--accent); }
 .cal-day.past .dot { opacity: .55; }
 .cal-side { display: grid; gap: 16px; min-width: 0; }
 .cal-agenda-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .cal-back { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-soft); color: var(--brand); font: 600 13px/1 var(--font-body); cursor: pointer; }
 .cal-list { list-style: none; display: grid; gap: 10px; margin: 0; padding: 0; max-height: 460px; overflow-y: auto; overscroll-behavior: contain; }
 .cal-item details { border: 1px solid var(--line); border-left-width: 4px; border-radius: 10px; background: var(--surface); }
-.cal-item.mine details { border-left-color: var(--brand-deep); }
-.cal-item.event details { border-left-color: #4f8fd8; }
+.cal-item.mine details { border-left-color: var(--accent); }
+.cal-item.event details { border-left-color: var(--blue-muted); }
 .cal-item summary { display: grid; gap: 4px; padding: 12px 14px; cursor: pointer; list-style: none; }
 .cal-item summary::-webkit-details-marker { display: none; }
-.cal-item summary::after { content: "Show details"; font-size: 12px; font-weight: 600; color: var(--brand-hover); }
+.cal-item summary::after { content: "Show details"; font-size: 12px; font-weight: 600; color: var(--accent-ink); }
 .cal-item details[open] summary::after { content: "Hide details"; }
-.cal-item summary:focus-visible { outline: 3px solid var(--brand-hover); outline-offset: 2px; border-radius: 8px; }
+.cal-item summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
 .cal-item-badge { justify-self: start; padding: 2px 10px; border-radius: 999px; background: var(--surface-soft); color: var(--brand); font-size: 11px; font-weight: 700; }
-.cal-item.mine .cal-item-badge { background: var(--brand-deep); color: var(--surface); }
+.cal-item.mine .cal-item-badge { background: var(--accent); color: var(--brand); }
 .cal-item-title { font-weight: 600; color: var(--ink); font-size: 15px; overflow-wrap: anywhere; }
 .cal-item-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
 .cal-status { padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--surface-soft); color: var(--brand); }
@@ -113,10 +112,10 @@
 .cal-legend ul { list-style: none; display: grid; gap: 8px; margin: 12px 0 0; padding: 0; font-size: 14px; color: var(--muted); }
 .cal-legend li { display: flex; align-items: center; gap: 10px; }
 .swatch { width: 14px; height: 14px; flex-shrink: 0; }
-.swatch.today { border-radius: 4px; border: 2px solid var(--brand); background: var(--surface); }
+.swatch.today { border-radius: 4px; border: 2px solid var(--accent); background: var(--surface); }
 .swatch.closed { border-radius: 4px; background: repeating-linear-gradient(135deg, #f3f6fa 0 3px, #cfd9e5 3px 5px); border: 1px solid #b9c7d8; }
 .swatch.past { border-radius: 4px; background: #e3e8ee; }
-.swatch.count { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 9px; background: var(--brand); color: var(--surface); font-size: 10px; font-weight: 700; }
+.swatch.count { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 9px; background: var(--accent); color: var(--brand); font-size: 10px; font-weight: 700; }
 .cal-note { font-size: 12px !important; color: var(--muted); margin-top: 12px !important; }
 .cal-book-now { width: 100%; min-height: 50px !important; font-size: 15px !important; }
 
@@ -139,7 +138,7 @@
 .portal-form .password-wrap input { padding-right: 52px; }
 .portal-form .password-wrap .toggle-password { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
 .portal-form .password-wrap .toggle-password:hover { background: var(--surface-soft); color: var(--ink); }
-.toggle-password:focus-visible { outline: 3px solid var(--brand-hover); outline-offset: 1px; }
+.toggle-password:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
 .portal-form .form-alert { padding: 11px 14px; border-radius: 12px; background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; font-size: 15px; font-weight: 500; }
 .portal-form input[aria-invalid="true"] { border-color: #dc2626; }
 
