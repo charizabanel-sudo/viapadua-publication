@@ -1,4 +1,21 @@
 /* Shared presentation layer. Certificate artwork and print documents own their typography. */
+:root {
+    --brand-deep: #071f42;
+    --brand: #0a2348;
+    --brand-hover: #133560;
+    --accent: #f4c928;
+    --accent-hover: #e0b520;
+    --accent-ink: #b8960c;
+    --canvas: #f5f6f8;
+    --surface: #ffffff;
+    --surface-soft: #f9fafb;
+    --line: #e1e3e6;
+    --ink: #0a2348;
+    --muted: #6b7280;
+    --blue-soft: #e7eef8;
+    --blue-muted: #4f8fd8;
+}
+
 .vp-home .about-section-actions { display: flex; justify-content: flex-end; width: min(950px, 100%); margin: 0 auto 24px; }
 .vp-home .about-close { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border: 1px solid var(--brand); border-radius: var(--radius-control); background: var(--brand); color: var(--surface); font: 600 14px/1.4 var(--font-body); cursor: pointer; transition: background-color .2s ease; }
 .vp-home .about-close:hover { background: var(--brand-hover); }
@@ -32,7 +49,7 @@
 .vp-admin .sidebar-nav { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px 14px; }
 .vp-admin .nav-item { min-height: 44px; height: auto; padding: 12px 14px; gap: 12px; margin-bottom: 4px; color: var(--on-brand-muted); font-size: 13px; font-weight: 500; border-radius: 10px; }
 .vp-admin .nav-item i { width: 20px; font-size: 16px; text-align: center; flex-shrink: 0; }
-.vp-admin .nav-item.active { background: var(--surface-soft); color: var(--brand); box-shadow: none; font-weight: 700; }
+.vp-admin .nav-item.active { background: var(--accent); color: var(--brand); box-shadow: none; font-weight: 700; }
 .vp-admin .nav-item:focus-visible { outline-color: var(--accent); outline-offset: -3px; }
 .vp-admin .sidebar-user { padding: 16px; gap: 8px; flex-shrink: 0; min-height: 88px; background: rgb(0 0 0 / 9%); }
 .vp-admin .user-left { gap: 9px; min-width: 0; flex: 1; }
@@ -45,11 +62,11 @@
 .vp-admin .main-content { margin-left: var(--sidebar-width); width: calc(100% - var(--sidebar-width)); max-width: 1800px; padding: 38px clamp(20px, 3vw, 48px) 100px; min-width: 0; background: var(--canvas); }
 .vp-admin .page-header h1 { font-size: clamp(25px, 2.4vw, 34px); line-height: 1.25; letter-spacing: -.8px; overflow-wrap: anywhere; }
 .vp-admin .page-header p { color: var(--muted); font-size: 14px; }
-.vp-admin .gold-text { color: var(--brand); }
+.vp-admin .gold-text { color: var(--accent-ink); }
 .vp-admin .dashboard-heading { display: flex; justify-content: space-between; align-items: center; gap: 24px; }
 .dashboard-greeting { min-width: 0; }
 .vp-admin .dashboard-date { display: inline-flex; gap: 13px; align-items: center; flex-shrink: 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--muted); box-shadow: var(--shadow-card); line-height: 1.5; }
-.dashboard-date .calendar-day { display: grid; place-items: center; width: 46px; height: 51px; border-radius: 9px; border-top: 6px solid var(--brand); background: var(--surface-soft); color: var(--brand); font-size: 25px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dashboard-date .calendar-day { display: grid; place-items: center; width: 46px; height: 51px; border-radius: 9px; border-top: 6px solid var(--accent); background: var(--surface-soft); color: var(--brand); font-size: 25px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .dashboard-date strong, .dashboard-date span span, .dashboard-date small { display: block; }
 .dashboard-date strong { font-size: 13px; color: var(--ink); }
 .dashboard-date span span { font-size: 12px; }
@@ -58,7 +75,7 @@
 .vp-admin .stat-card { border-top-width: 1px; border-radius: var(--radius-card); padding: 22px; gap: 7px; border-color: var(--line); box-shadow: var(--shadow-card); }
 .vp-admin .stat-card:first-child { background: var(--brand); border-color: var(--brand); color: white; }
 .vp-admin .stat-card:first-child .stat-label, .vp-admin .stat-card:first-child .stat-note { color: var(--on-brand-muted); }
-.vp-admin .stat-card:first-child .stat-value { color: white; }
+.vp-admin .stat-card:first-child .stat-value { color: var(--accent); } /* Gold text for the number */
 .vp-admin .stat-card .stat-icon { font-size: 17px; color: var(--accent-ink); top: 23px; right: 18px; }
 .vp-admin .stat-card:first-child .stat-icon { color: var(--accent); }
 .vp-admin .stat-card .stat-label { font-size: 12px; color: var(--muted); }
@@ -69,7 +86,7 @@
 .vp-admin .card { padding: 24px; }
 .vp-admin .card-head h2 { font-size: 17px; font-weight: 600; letter-spacing: -.3px; }
 .vp-admin .card-head .sub, .vp-admin .card-link { font-size: 12px; }
-.vp-admin .card-link { color: var(--brand); }
+.vp-admin .card-link { color: var(--accent-ink); }
 .vp-admin .table-wrap { position: relative; max-width: 100%; min-width: 0; border-color: var(--line); }
 .vp-admin .data-table { font-size: 13px; }
 .vp-admin .data-table th { font-size: 10px; letter-spacing: .07em; background: var(--surface-soft); color: var(--muted); padding: 13px 12px; }
@@ -90,12 +107,12 @@
 .vp-admin .list-row strong { font-size: 13px; white-space: normal; overflow-wrap: anywhere; }
 .vp-admin .list-row .meta { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 .vp-admin .date-chip { background: var(--surface-soft); border-color: var(--line); }
-.vp-admin .date-chip .m { font-size: 10px; color: var(--brand); }
+.vp-admin .date-chip .m { font-size: 10px; color: var(--accent-ink); }
 .vp-admin .date-chip .d { font-size: 20px; }
 .vp-admin .mini-title { font-size: 11px; color: var(--muted); }
 .vp-admin .bar-label { font-size: 12px; }
 .vp-admin .bar-track { height: 7px; background: var(--surface-soft); }
-.vp-admin .bar-fill, .vp-admin .month-bars .bar { background: var(--brand); }
+.vp-admin .bar-fill, .vp-admin .month-bars .bar { background: var(--accent); }
 .vp-admin .month-bars .lbl, .vp-admin .month-bars .val { font-size: 10px; }
 .vp-admin .month-bars { grid-template-columns: repeat(12, minmax(0, 1fr)); }
 .vp-admin .month-bars .col { min-width: 0; }
@@ -116,7 +133,7 @@
 .vp-admin .toolbar, .vp-admin .filter-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: none; gap: 12px; flex-wrap: wrap; }
 .vp-admin .tab { font-size: 12px; min-height: 44px; height: auto; padding: 10px 14px; }
 .vp-admin .tab .count { font-size: 11px; }
-.vp-admin .tab.active { background: var(--brand); border-color: var(--brand); color: white; }
+.vp-admin .tab.active { background: var(--accent); border-color: var(--accent); color: var(--brand); }
 .vp-admin .payment-card { grid-template-columns: minmax(0, 1fr) 208px; gap: 24px; padding: 24px; }
 .vp-admin .payment-title { overflow-wrap: anywhere; }
 .vp-admin .payment-user { font-size: 13px; overflow-wrap: anywhere; }
@@ -140,7 +157,7 @@
 .vp-admin .reject-button:hover { background: #fbe5e2; }
 .vp-admin .new-badge { animation: none; font-size: 10px; padding: 3px 7px; }
 .vp-admin .modal-content { border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); padding: 28px; max-height: calc(100dvh - 32px); }
-.vp-admin .modal { padding: 16px; background: rgb(var(--brand-deep-rgb) / 60%); backdrop-filter: blur(5px); }
+.vp-admin .modal { padding: 16px; background: rgb(7 31 66 / 60%); backdrop-filter: blur(5px); }
 .vp-admin .cal-weekday, .vp-admin .cal-more, .vp-admin .cal-legend, .vp-admin .event-date .month, .vp-admin .blocked-badge { font-size: 11px; }
 .vp-admin .cal-chip { font-size: 12px; min-height: 30px; }
 .vp-admin .cal-actions .icon-btn { min-width: 30px; min-height: 32px; }
@@ -191,7 +208,7 @@
 .services-workspace-head p, .chat-header p { color: var(--on-brand-muted); font-size: 13px; }
 .services-workspace-nav { font-size: 13px; }
 .services-workspace-nav button { font-size: 12px; border-color: var(--line); color: var(--brand); background: var(--surface); }
-.public-overlay-backdrop { background: rgb(var(--brand-deep-rgb) / 65%); }
+.public-overlay-backdrop { background: rgb(7 31 66 / 65%); }
 .public-dialog :focus-visible { outline-color: var(--brand-hover); }
 .login-layer .login-card { background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-float); }
 .login-layer .login-logo { background: var(--logo-ink); color: var(--logo-accent); box-shadow: 0 8px 20px rgb(var(--brand-rgb) / 18%); }
