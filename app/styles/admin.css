@@ -60,17 +60,21 @@
 
     .logo-text h2 {
         color: white;
-        font-size: 16px;
+        font-family: var(--font-body);
+        font-size: 23px;
         font-weight: 700;
-        line-height: 1.2;
-        letter-spacing: 0.3px;
+        line-height: 1.15;
+        letter-spacing: -.5px;
     }
 
     .logo-text p {
         margin-top: 4px;
-        color: #f4c928;
-        font-size: 16px;
+        color: var(--parish-gold);
+        font-family: var(--font-body);
+        font-size: 11px;
         font-weight: 600;
+        letter-spacing: .09em;
+        text-transform: uppercase;
         white-space: nowrap;
     }
 

@@ -27,7 +27,7 @@
 .navbar .logo { gap: 12px; flex-shrink: 0; }
 .navbar .logo-box { width: 46px; min-width: 46px; height: 46px; background: var(--logo-accent); color: var(--logo-ink); border-radius: 13px; font-size: 23px; }
 .navbar .logo-text h3 { font-size: 23px; line-height: 1.15; color: var(--surface); letter-spacing: -.5px; }
-.navbar .logo-text span { color: var(--on-brand-muted); font-size: 11px; letter-spacing: .09em; text-transform: uppercase; font-weight: 600; }
+.navbar .logo-text span { color: var(--parish-gold); font-size: 11px; letter-spacing: .09em; text-transform: uppercase; font-weight: 600; }
 .navbar .nav-buttons { gap: 8px; }
 .navbar .nav-btn { display: inline-flex; align-items: center; justify-content: center; height: auto; min-height: 44px; border-radius: var(--radius-control); background: transparent; color: var(--surface); border: 1px solid rgb(var(--accent-rgb) / 45%); padding: 10px 16px; font-size: 14px; gap: 8px; }
 .navbar .nav-btn:hover { background: var(--brand-hover); border-color: var(--accent); }
@@ -44,8 +44,8 @@
 .vp-admin .sidebar-logo { flex-shrink: 0; height: 100px; padding: 24px 22px; gap: 12px; }
 .vp-admin .logo-icon { width: 43px; height: 46px; border: 1px solid rgb(255 255 255 / 35%); background: var(--logo-accent); border-radius: 12px; }
 .vp-admin .logo-icon i { color: var(--logo-ink); font-size: 22px; }
-.vp-admin .logo-text h2 { font-size: 21px; letter-spacing: -.4px; line-height: 1.2; }
-.vp-admin .logo-text p { font-size: 11px; font-weight: 500; color: var(--accent); letter-spacing: .03em; white-space: normal; line-height: 1.4; }
+.vp-admin .logo-text h2 { font-family: var(--font-body); font-size: 23px; font-weight: 700; letter-spacing: -.5px; line-height: 1.15; }
+.vp-admin .logo-text p { font-family: var(--font-body); font-size: 11px; font-weight: 600; color: var(--parish-gold); letter-spacing: .09em; text-transform: uppercase; white-space: normal; line-height: 1.4; }
 .vp-admin .sidebar-nav { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px 14px; }
 .vp-admin .nav-item { min-height: 44px; height: auto; padding: 12px 14px; gap: 12px; margin-bottom: 4px; color: var(--on-brand-muted); font-size: 13px; font-weight: 500; border-radius: 10px; }
 .vp-admin .nav-item i { width: 20px; font-size: 16px; text-align: center; flex-shrink: 0; }
@@ -242,7 +242,7 @@ html.vp-splash-on .vp-splash { background: radial-gradient(ellipse at center, va
 .vp-splash-logo rect { fill: var(--logo-accent); }
 .vp-splash-logo g { fill: var(--logo-ink); }
 .vp-splash-logo { box-shadow: 0 16px 40px rgb(0 0 0 / 20%); }
-.vp-splash-sub { color: var(--accent); }
+.vp-splash-sub { color: var(--parish-gold); }
 .vp-splash-bar span { background: var(--accent); }
 
 @media (max-width: 1250px) {
