@@ -9,9 +9,6 @@
     "dev": "next dev -p 3001",
     "build": "prisma generate && next build",
     "start": "next start -p 3001",
-    "vercel": "vercel",
-    "vercel:link": "vercel link --yes",
-    "vercel:env-pull": "vercel env pull .env.local --yes",
     "lint": "eslint .",
     "typecheck": "prisma generate && tsc --noEmit",
     "test": "tsx --test tests/unit/*.test.ts",
@@ -62,8 +59,7 @@
     "prisma": "^7.10.1",
     "selfsigned": "^5.5.0",
     "tsx": "^4.23.15",
-    "typescript": "^5.9.3",
-    "vercel": "^65.8.0"
+    "typescript": "^5.9.3"
   },
   "allowScripts": {
     "@prisma/engines@7.10.1": true,
