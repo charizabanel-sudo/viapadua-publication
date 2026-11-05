@@ -15,6 +15,45 @@ export function normalizeReportFilters(raw: { from?: string; to?: string; servic
   return { from, to, service };
 }
 
+/** Converts a monthly or quarterly preset into an inclusive date range. */
+export function normalizeReportPeriod(raw: {
+  period?: string;
+  value?: string;
+  from?: string;
+  to?: string;
+  service?: string;
+}, now: Date = new Date()) {
+  const period = raw.period === "monthly" || raw.period === "quarterly" ? raw.period : "custom";
+  const current = todayInParish(now);
+  let value = (raw.value ?? "").trim();
+
+  if (period === "monthly") {
+    if (!/^\\d{4}-\\d{2}$/.test(value)) value = current.slice(0, 7);
+    const [year, month] = value.split("-").map(Number);
+    const from = `${value}-01`;
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    return normalizeReportFilters({ ...raw, from, to: `${value}-${String(lastDay).padStart(2, "0")}` }, now);
+  }
+
+  if (period === "quarterly") {
+    if (!/^\\d{4}-Q[1-4]$/.test(value)) {
+      const quarter = Math.floor((Number(current.slice(5, 7)) - 1) / 3) + 1;
+      value = `${current.slice(0, 4)}-Q${quarter}`;
+    }
+    const year = Number(value.slice(0, 4));
+    const quarter = Number(value.slice(-1));
+    const startMonth = (quarter - 1) * 3 + 1;
+    const endMonth = startMonth + 2;
+    return normalizeReportFilters({
+      ...raw,
+      from: `${year}-${String(startMonth).padStart(2, "0")}-01`,
+      to: `${year}-${String(endMonth).padStart(2, "0")}-${String(new Date(Date.UTC(year, endMonth, 0)).getUTCDate()).padStart(2, "0")}`,
+    }, now);
+  }
+
+  return normalizeReportFilters(raw, now);
+}
+
 function bookingWhere(f: ReportFilters): Prisma.BookingWhereInput {
   return {
     ...EXCLUDE_SAMPLES,

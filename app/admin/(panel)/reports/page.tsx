@@ -1,7 +1,7 @@
 import DownloadLink from "@/components/admin/DownloadLink";
 import PrintButton from "@/components/admin/PrintButton";
 import { EVENT_TYPE_LABEL } from "@/lib/admin/events";
-import { getReport, normalizeReportFilters } from "@/lib/admin/reports";
+import { getReport, normalizeReportPeriod } from "@/lib/admin/reports";
 import { formatPeso } from "@/lib/booking/catalog";
 import { formatDateLong } from "@/lib/booking/schedule";
 import { requireAdmin } from "@/lib/server/auth";
@@ -33,11 +33,17 @@ function Bar({ label, value, total, tone }: { label: string; value: number; tota
 export default async function ReportsPage({ searchParams }: { searchParams: SearchParams }) {
   await requireAdmin();
   const sp = await searchParams;
-  const filters = normalizeReportFilters({ from: first(sp.from), to: first(sp.to), service: first(sp.service) });
+  const filters = normalizeReportPeriod({ period: first(sp.period), value: first(sp.value), from: first(sp.from), to: first(sp.to), service: first(sp.service) });
   const report = await getReport(getDb(), filters);
   const s = report.summary;
   const total = s.totalBookings;
-  const query = new URLSearchParams({ from: filters.from, to: filters.to, ...(filters.service !== "all" ? { service: filters.service } : {}) }).toString();
+  const query = new URLSearchParams({
+    period: first(sp.period) ?? "custom",
+    ...(first(sp.value) ? { value: first(sp.value)! } : {}),
+    from: filters.from,
+    to: filters.to,
+    ...(filters.service !== "all" ? { service: filters.service } : {}),
+  }).toString();
 
   return (
     <>
@@ -48,17 +54,22 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
         </div>
         <div className="page-actions no-print">
           <PrintButton label="Print report" />
-          <DownloadLink className="btn btn-primary" href={`/admin/export?kind=bookings&${query}`}>
-            <i className="fas fa-download" aria-hidden="true" /> Bookings CSV
-          </DownloadLink>
-          <DownloadLink className="btn btn-primary" href={`/admin/export?kind=guests&${query}`}>
-            <i className="fas fa-download" aria-hidden="true" /> Guest report CSV
+          <DownloadLink className="btn btn-primary" href={`/admin/export?kind=bookings&format=pdf&${query}`}>
+            <i className="fas fa-file-pdf" aria-hidden="true" /> Download PDF
           </DownloadLink>
         </div>
       </header>
 
       <div className="print-only print-heading">
-        <strong>Via Padua Parish Booking Report</strong>
+        <div className="print-parish-logo" aria-hidden="true">
+          <span><i className="fas fa-church" /></span>
+          <div>
+            <strong>Via Padua</strong>
+            <small>Church of San Antonio de Padua</small>
+            <small>Ponso, Polangui, Albay</small>
+          </div>
+        </div>
+        <strong>List of Sacraments / Services Report</strong>
         <span>
           {formatDateLong(filters.from)} to {formatDateLong(filters.to)} · {filters.service === "all" ? "All services" : filters.service} · Generated{" "}
           {new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" })}
@@ -66,6 +77,18 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
       </div>
 
       <form className="toolbar no-print" action="/admin/reports" method="get">
+        <div className="field">
+          <label htmlFor="rp-period">Report period</label>
+          <select id="rp-period" name="period" defaultValue={first(sp.period) ?? "custom"}>
+            <option value="custom">Custom range</option>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="rp-value">Month / Quarter</label>
+          <input id="rp-value" type="text" name="value" defaultValue={first(sp.value) ?? ""} placeholder="e.g. 2026-11 or 2026-Q4" />
+        </div>
         <div className="field">
           <label htmlFor="rp-from">From</label>
           <input id="rp-from" type="date" name="from" defaultValue={filters.from} required />
