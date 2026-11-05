@@ -5,6 +5,28 @@ import { getDb } from "@/lib/server/db";
 import { reviewCertificateRequest } from "@/lib/server/actions/portal";
 import UploadDocument from "@/components/portal/UploadDocument";
 import CertificateEditor from "@/components/admin/CertificateEditor";
+
+const CERTIFICATE_DETAIL_FIELDS: Record<string, readonly { key: string; label: string }[]> = {
+  baptism: [
+    { key: "recipientName", label: "Name on parish record" },
+    { key: "fatherName", label: "Father's full name" },
+    { key: "motherName", label: "Mother's maiden name" },
+    { key: "sacramentDate", label: "Sacrament date" },
+    { key: "parish", label: "Church / place of sacrament" },
+  ],
+  confirmation: [
+    { key: "recipientName", label: "Name on parish record" },
+    { key: "sacramentDate", label: "Sacrament date" },
+    { key: "parish", label: "Church / place of sacrament" },
+  ],
+  wedding: [
+    { key: "recipientName", label: "Name on parish record" },
+    { key: "spouseName", label: "Spouse's full name" },
+    { key: "sacramentDate", label: "Sacrament date" },
+    { key: "parish", label: "Church / place of sacrament" },
+  ],
+};
+
 export default async function RequestsPage() {
   await requireAdmin();
   const rows = await getDb().certificateRequest.findMany({
@@ -23,6 +45,8 @@ export default async function RequestsPage() {
       </p>
       {rows.map((r) => {
         const d = r.details as Record<string, string>;
+        const detailFields = CERTIFICATE_DETAIL_FIELDS[r.type] ??
+          [];
         return (
           <article className="portal-card" key={r.id}>
             <h2>
@@ -35,12 +59,15 @@ export default async function RequestsPage() {
               Status: <strong>{r.status}</strong> · Fee: ₱{String(r.fee)}
             </p>
             <dl>
-              {Object.entries(d).map(([key, value]) => (
-                <div key={key}>
-                  <dt>{key}</dt>
-                  <dd>{String(value)}</dd>
-                </div>
-              ))}
+              {detailFields.map(({ key, label }) => {
+                const value = String(d[key] ?? "").trim();
+                return value ? (
+                  <div key={key}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ) : null;
+              })}
             </dl>
             <FeedbackForm action={reviewCertificateRequest}>
               <input type="hidden" name="id" value={r.id} />

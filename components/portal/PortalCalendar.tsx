@@ -9,10 +9,10 @@ import { dayState, longDate, monthLabel, monthWeeks, type DayState, type PortalC
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const STATE_TEXT: Record<DayState, string> = {
   past: "Past date",
-  closed: "Closed for online booking (Sundays and Tuesdays)",
+  closed: "Closed for online appointments (Sundays and Tuesdays)",
   blocked: "Unavailable: blocked by the parish office",
-  too_far: "Beyond the booking window",
-  open: "Open for booking requests",
+  too_far: "Beyond the appointment window",
+  open: "Open for appointment requests",
 };
 const STATUS_TEXT: Record<string, string> = { pending: "Pending", confirmed: "Confirmed", completed: "Completed", cancelled: "Cancelled" };
 
@@ -26,7 +26,7 @@ function ItemDetails({ item, showDate }: { item: PortalCalendarItem; showDate: b
     <li className={`cal-item ${mine ? "mine" : "event"}`}>
       <details>
         <summary>
-          <span className="cal-item-badge">{mine ? "Your booking" : "Parish event"}</span>
+          <span className="cal-item-badge">{mine ? "Your appointment" : "Parish event"}</span>
           <span className="cal-item-title">{mine ? item.service : item.title}</span>
           <span className="cal-item-meta">
             {showDate && <>{shortDate(item.date)} · </>}
@@ -41,7 +41,7 @@ function ItemDetails({ item, showDate }: { item: PortalCalendarItem; showDate: b
             <>
               <div><dt>Reference</dt><dd>{item.reference}</dd></div>
               <div><dt>Payment</dt><dd>{item.paymentStatus === "paid" ? "Verified paid" : "Not yet verified"}</dd></div>
-              <div><dt>Manage</dt><dd><Link href="/portal?tab=bookings">Open My Bookings</Link></dd></div>
+              <div><dt>Manage</dt><dd><Link href="/portal?tab=bookings">Open My Appointments</Link></dd></div>
             </>
           ) : (
             <>
@@ -130,7 +130,7 @@ export default function PortalCalendar({ data, prevHref, nextHref, todayHref }: 
                   const state = dayState(iso, today, blocked);
                   const mine = items.some((x) => x.kind === "booking");
                   const events = items.some((x) => x.kind === "event");
-                  const label = [longDate(iso), iso === today ? "today" : "", mine ? "your booking" : "", events ? "parish event" : "", items.length > 1 ? `${items.length} items` : "", state !== "open" ? STATE_TEXT[state] : ""].filter(Boolean).join(", ");
+                  const label = [longDate(iso), iso === today ? "today" : "", mine ? "your appointment" : "", events ? "parish event" : "", items.length > 1 ? `${items.length} items` : "", state !== "open" ? STATE_TEXT[state] : ""].filter(Boolean).join(", ");
                   return (
                     <td key={iso}>
                       <button

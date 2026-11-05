@@ -41,8 +41,8 @@ export default async function DashboardPage() {
         </h1>
         <p>
           {data.counts.pending === 0
-            ? "No booking requests are waiting for approval."
-            : `${data.counts.pending} booking request${data.counts.pending === 1 ? " is" : "s are"} waiting for your approval.`}
+            ? "No appointment requests are waiting for approval."
+            : `${data.counts.pending} appointment request${data.counts.pending === 1 ? " is" : "s are"} waiting for your approval.`}
         </p>
         </div>
         <time className="dashboard-date" dateTime={data.today} aria-label={`${formatDateLong(data.today)}, Asia/Manila`}>

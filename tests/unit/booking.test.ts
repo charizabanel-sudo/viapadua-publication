@@ -17,6 +17,7 @@ function baptism(overrides: Record<string, string> = {}): Record<string, string>
     bookDate: "2026-10-22", // Thursday
     bookTime: "09:30",
     bookNotes: "",
+    serviceType: "ordinary",
     payment_method: "church",
     childName: "Baby Dela Cruz",
     childDob: "2026-09-01",
@@ -66,7 +67,7 @@ describe("booking validation", () => {
     assert.equal(result.data.requester.email, "juan@example.com");
     assert.equal(result.data.requester.phone, "09171234567");
     assert.equal(result.data.gcash, null);
-    assert.deepEqual(Object.keys(result.data.details).sort(), ["birthPlace", "childDob", "childName", "fatherName", "motherName"]);
+    assert.deepEqual(Object.keys(result.data.details).sort(), ["birthPlace", "childDob", "childName", "fatherName", "motherName", "serviceType"]);
   });
 
   it("rejects unknown services", () => {
@@ -80,6 +81,21 @@ describe("booking validation", () => {
     if (!result.ok) {
       assert.ok(result.fieldErrors.childName);
       assert.ok(result.fieldErrors.fatherName);
+    }
+  });
+
+  it("stores service type and special requests for special baptism appointments", () => {
+    const missing = validateBookingInput(baptism({ serviceType: "special", specialRequest: "" }), NOW);
+    assert.equal(missing.ok, false);
+
+    const result = validateBookingInput(
+      baptism({ serviceType: "special", specialRequest: "Please include a choir for the program." }),
+      NOW,
+    );
+    assert.ok(result.ok);
+    if (result.ok) {
+      assert.equal(result.data.details.serviceType, "Special");
+      assert.equal(result.data.details.specialRequest, "Please include a choir for the program.");
     }
   });
 

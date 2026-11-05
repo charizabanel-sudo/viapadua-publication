@@ -126,7 +126,8 @@ export default function PortalShell({ tab, userName, logout, children }: { tab: 
           {/* Opening the services card closes the phone drawer first. */}
           <span className="portal-book-wrap" onClickCapture={() => setOpen(false)}>
           <ServicesLink className="portal-book">
-            <i className="fas fa-calendar-plus" aria-hidden="true" /> Book / request a certificate
+            <i className="fas fa-calendar-plus" aria-hidden="true" />
+            <span><span className="portal-action-capital">B</span>ook / <span className="portal-action-capital">R</span>equest a <span className="portal-action-capital">C</span>ertificate</span>
           </ServicesLink>
           </span>
           {logout}

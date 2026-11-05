@@ -9,7 +9,7 @@ export default async function SiteHeader() {
   const signedIn = Boolean(await getCurrentUser());
   return (
     <NavbarShell>
-      <div className="nav-container">
+      <div className="nav-container site-header-container">
         <Link href="/" className="logo" aria-label={`${SITE.name} home`}>
           <div className="logo-box" aria-hidden="true">
             <i className="fas fa-church" />

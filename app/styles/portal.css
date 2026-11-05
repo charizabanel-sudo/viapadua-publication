@@ -5,6 +5,7 @@
   font-size: 17px;
   line-height: 1.6;
   min-width: 0;
+  padding-bottom: 100px;
 }
 .portal-content h1 {
   font-size: clamp(28px, 4vw, 38px);
@@ -100,7 +101,7 @@
 }
 .portal-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
   gap: 18px;
 }
 .portal-grid .portal-card {
@@ -109,6 +110,20 @@
 .portal-auth {
   max-width: 540px;
   margin: clamp(20px, 6vh, 70px) auto;
+}
+.account-register-page {
+  min-height: calc(100dvh - 80px);
+  padding-bottom: 1px;
+  display: flow-root;
+  background:
+    linear-gradient(rgb(9 39 72 / 18%), rgb(9 39 72 / 18%)),
+    url("/images/church/altar.jpg") center / cover fixed no-repeat;
+}
+.account-register-page .portal-auth {
+  background: rgb(255 255 255 / 96%);
+  border: 1px solid rgb(255 255 255 / 70%);
+  box-shadow: 0 24px 64px rgb(9 30 58 / 28%);
+  backdrop-filter: blur(5px);
 }
 .portal-auth a,
 .portal-card a {
@@ -213,6 +228,11 @@
   background: white;
   border-bottom: 1px solid #dce3eb;
 }
+.navbar .site-header-container {
+  width: 100%;
+  max-width: none;
+  padding-left: 18px;
+}
 .navbar .logo-box {
   display: grid;
   place-items: center;
@@ -254,19 +274,6 @@
 .portal-content .btn,
 .portal-form .btn {
   display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  background: var(--brand);
-  color: white;
-  border: 1px solid var(--brand);
-  border-radius: 9px;
-  padding: 10px 16px;
-  font: inherit;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  min-height: 46px;
 }
 .portal-content .btn-secondary,
 .portal-form .btn-secondary {
@@ -274,14 +281,161 @@
   color: var(--brand);
   border-color: #becbd9;
 }
+.portal-content .portal-open-messages {
+  background: #b9e6fa;
+  border-color: #8fd1ef;
+  color: #173f5f;
+  box-shadow: none;
+  text-shadow: none;
+}
+.portal-content .portal-open-messages:hover {
+  background: #b9e6fa;
+  border-color: #8fd1ef;
+  color: #173f5f;
+  box-shadow: none;
+  filter: none;
+}
 .portal-content button:disabled,
 .portal-form button:disabled {
   opacity: 0.65;
   cursor: wait;
 }
-.portal-content {
-  padding-bottom: 100px;
+
+/* ---------- Appointment card ---------- */
+.appointment-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
+
+.appointment-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.appointment-ref {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.appointment-service {
+  margin: 2px 0 0;
+  color: #5a6b7d;
+  font-size: 15px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.status-pending   { background: #fff3d6; color: #8a5a00; }
+.status-confirmed { background: #ddf0e1; color: #1f6b3a; }
+.status-cancelled { background: #fbe0e0; color: #9b2c2c; }
+.status-completed { background: #e4ebf5; color: #355073; }
+
+.appointment-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: 10px 22px;
+  margin: 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--line, #d9e0e8);
+  border-bottom: 1px solid var(--line, #d9e0e8);
+}
+.appointment-info > div { display: grid; gap: 2px; }
+.appointment-info dt {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #5a6b7d;
+}
+.appointment-info dd {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.appointment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: auto;
+}
+.appointment-actions .btn {
+  min-height: 46px;
+  padding: 10px 18px;
+  font: inherit;
+  font-weight: 600;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.inline-form { display: contents; }
+
+.btn-danger {
+  background: #dc2626;
+  color: #fff;
+  border: 1px solid #dc2626;
+  box-shadow: 0 1px 2px rgb(127 29 29 / 25%);
+}
+.btn-danger:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #fff;
+}
+
+.appointment-edit-form {
+  margin: 0;
+  padding: 16px;
+  border-radius: 10px;
+  background: #f6f9fc;
+  border: 1px dashed #c4d1e0;
+  animation: slideDown 0.18s ease-out;
+}
+.appointment-edit-form .form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.appointment-edit-form .form-row .btn {
+  min-height: 46px;
+  padding: 10px 18px;
+  font: inherit;
+  font-weight: 600;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.appointment-edit-form .form-row .btn-primary {
+  background: #b8e6c6;
+  border-color: #8dd0a2;
+  color: #164b2a;
+  box-shadow: 0 1px 2px rgb(9 42 82 / 18%);
+}
+.appointment-edit-form .form-row .btn-primary:hover {
+  background: #a4ddba;
+  border-color: #78c795;
+  color: #164b2a;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .appointment-edit-form { animation: none; }
+}
+
 @media (max-width: 600px) {
   .navbar .nav-container {
     flex-wrap: wrap;

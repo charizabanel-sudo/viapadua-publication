@@ -4,8 +4,8 @@ import { useFormStatus } from "react-dom";
 import { updateBookingStatusAction } from "./actions";
 
 const LABELS = {
-  confirm: { short: "Confirm", long: "Confirm Booking", question: "Confirm this booking?", className: "approve-button", icon: "M5 12l4 4L19 6" },
-  cancel: { short: "Cancel", long: "Cancel Booking", question: "Cancel this booking? This cannot be undone here.", className: "reject-button", icon: "M6 6l12 12M18 6L6 18" },
+  confirm: { short: "Confirm", long: "Confirm Appointment", question: "Confirm this appointment?", className: "approve-button", icon: "M5 12l4 4L19 6" },
+  cancel: { short: "Cancel", long: "Cancel Appointment", question: "Cancel this appointment? This cannot be undone here.", className: "reject-button", icon: "M6 6l12 12M18 6L6 18" },
 } as const;
 
 type Props = { bookingId: number; reference: string; action: keyof typeof LABELS; returnTo: string; size?: "short" | "long" };

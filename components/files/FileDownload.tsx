@@ -1,8 +1,7 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
-import { fetchFile, saveBlob, type FetchedFile } from "@/lib/client/download";
-import FileActions from "./FileActions";
+import { fetchFile, saveBlob } from "@/lib/client/download";
 
 export const DOCUMENT_TYPES = ["application/pdf", "image/png", "image/jpeg"] as const;
 export const CSV_TYPES = ["text/csv"] as const;
@@ -29,7 +28,6 @@ export default function FileDownload({
 }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [file, setFile] = useState<FetchedFile | null>(null);
   const busyRef = useRef(false);
   return (
     <span className="file-download">
@@ -49,9 +47,7 @@ export default function FileDownload({
           try {
             const fetched = await fetchFile(href, accept, fallbackName);
             saveBlob(fetched.blob, fetched.filename);
-            setFile(fetched);
           } catch (e) {
-            setFile(null);
             setError(e instanceof Error ? e.message : "Download failed. Please retry.");
           } finally {
             busyRef.current = false;
@@ -67,16 +63,20 @@ export default function FileDownload({
           children
         )}
       </a>
-      {previewHref && (
-        <a className="file-action" href={previewHref} target="_blank" rel="noopener">
-          <i className="fas fa-print" aria-hidden="true" /> Open / print
-        </a>
-      )}
-      {file && <FileActions blob={file.blob} filename={file.filename} />}
       {error && (
         <span role="alert" className="file-error">
           {error}
         </span>
+      )}
+      {previewHref && (
+        <a
+          className={className}
+          href={previewHref}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {" "}Open
+        </a>
       )}
     </span>
   );

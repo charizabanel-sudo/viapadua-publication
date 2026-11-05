@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  turbopack: {
+    root: process.cwd(),
+  },
   experimental: { serverActions: { bodySizeLimit: "4mb" } },
   poweredByHeader: false,
   images: {

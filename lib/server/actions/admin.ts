@@ -78,13 +78,13 @@ export async function toggleBlockedDateAction(formData: FormData): Promise<Actio
     refreshAdmin();
     revalidatePath("/services");
     const label = formatDateLong(date);
-    if (mode === "unblock") return { ok: true, message: `${label} is open for bookings again.` };
+    if (mode === "unblock") return { ok: true, message: `${label} is open for appointments again.` };
     return {
       ok: true,
       message:
         result.activeBookings > 0
-          ? `${label} blocked for new bookings. ${result.activeBookings} existing booking(s) on this date were kept. Review them in Bookings.`
-          : `${label} blocked for new bookings.`,
+          ? `${label} blocked for new appointments. ${result.activeBookings} existing appointment(s) on this date were kept. Review them in Appointments.`
+          : `${label} blocked for new appointments.`,
     };
   } catch (error) {
     return failure(error, "The date couldn't be updated.");
@@ -96,21 +96,21 @@ export async function toggleBlockedDateAction(formData: FormData): Promise<Actio
 export async function completeBookingAction(formData: FormData): Promise<ActionResult> {
   const admin = await requireAdmin();
   const bookingId = positiveInt(formData.get("bookingId"));
-  if (!bookingId) return { ok: false, message: "Invalid booking." };
+  if (!bookingId) return { ok: false, message: "Invalid appointment." };
   try {
     const result = await changeBookingStatus(getDb(), { bookingId, action: "complete", adminId: admin.id });
     refreshAdmin();
-    if (result.ok) return { ok: true, message: `Booking ${result.reference} marked as completed.` };
-    if (result.reason === "not_found") return { ok: false, message: "Booking not found." };
+    if (result.ok) return { ok: true, message: `Appointment ${result.reference} marked as completed.` };
+    if (result.reason === "not_found") return { ok: false, message: "Appointment not found." };
     return {
       ok: false,
       message:
         result.current === "pending"
-          ? `Booking ${result.reference} must be confirmed before it can be completed.`
-          : `Booking ${result.reference} is already ${result.current}.`,
+          ? `Appointment ${result.reference} must be confirmed before it can be completed.`
+          : `Appointment ${result.reference} is already ${result.current}.`,
     };
   } catch (error) {
-    return failure(error, "The booking couldn't be updated.");
+    return failure(error, "The appointment couldn't be updated.");
   }
 }
 
@@ -126,7 +126,7 @@ function receiptMessage(reference: string, issued: Awaited<ReturnType<typeof iss
 export async function markPaidAction(formData: FormData): Promise<ActionResult> {
   const admin = await requireAdmin();
   const bookingId = positiveInt(formData.get("bookingId"));
-  if (!bookingId) return { ok: false, message: "Invalid booking." };
+  if (!bookingId) return { ok: false, message: "Invalid appointment." };
   const raw = formData.get("verification");
   const verification = VERIFICATIONS.find((v) => v === raw) ?? null;
   try {
@@ -148,7 +148,7 @@ export async function markPaidAction(formData: FormData): Promise<ActionResult> 
 export async function receiptAction(formData: FormData): Promise<ActionResult> {
   const admin = await requireAdmin();
   const bookingId = positiveInt(formData.get("bookingId"));
-  if (!bookingId) return { ok: false, message: "Invalid booking." };
+  if (!bookingId) return { ok: false, message: "Invalid appointment." };
   try {
     const db = getDb();
     const result = await issueReceiptForPaidBooking(db, { bookingId, adminId: admin.id });
@@ -165,7 +165,7 @@ export async function receiptAction(formData: FormData): Promise<ActionResult> {
 
 export async function saveCertificateAction(bookingId: number, certificate: unknown): Promise<ActionResult> {
   await requireAdmin();
-  if (!Number.isInteger(bookingId) || bookingId <= 0) return { ok: false, message: "Invalid booking." };
+  if (!Number.isInteger(bookingId) || bookingId <= 0) return { ok: false, message: "Invalid appointment." };
   const parsed = validateCertificate(certificate);
   if (!parsed.ok) return { ok: false, message: parsed.error };
   try {

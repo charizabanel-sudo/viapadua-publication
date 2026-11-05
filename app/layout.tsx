@@ -17,7 +17,6 @@ import "./styles/portal.css";
 import "./styles/design-system.css";
 import "./styles/portal-shell.css";
 import SplashScreen from "@/components/SplashScreen";
-import { SPLASH_BOOT_SCRIPT } from "@/lib/splash";
 import { PublicOverlayProvider } from "@/components/public/PublicOverlayProvider";
 import { getCurrentUser } from "@/lib/server/user-auth";
 import ChatShell from "@/components/messaging/ChatShell";
@@ -39,9 +38,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     // suppressHydrationWarning: the pre-paint splash script may add a class to <html>.
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: SPLASH_BOOT_SCRIPT }} />
-      </head>
+    <head>
+    </head>
       <body>
         <SplashScreen />
         <PublicOverlayProvider>

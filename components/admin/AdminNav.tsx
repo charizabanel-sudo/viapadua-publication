@@ -8,7 +8,7 @@ const ITEMS = [
   { href: "/admin", label: "Dashboard", icon: "fa-chart-line", exact: true },
   { href: "/admin/scanner", label: "Documents", icon: "fa-camera" },
   { href: "/admin/requests", label: "Certificates", icon: "fa-scroll" },
-  { href: "/admin/bookings", label: "Bookings", icon: "fa-book-open" },
+  { href: "/admin/bookings", label: "Appointments", icon: "fa-book-open" },
   { href: "/admin/events", label: "Events", icon: "fa-calendar-day" },
   { href: "/admin/records", label: "Records", icon: "fa-folder-open" },
   { href: "/admin/calendar", label: "Calendar", icon: "fa-calendar-alt" },

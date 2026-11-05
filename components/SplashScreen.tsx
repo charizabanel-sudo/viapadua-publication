@@ -11,12 +11,16 @@ const FADE_MS = 380;
 export default function SplashScreen() {
   useEffect(() => {
     const root = document.documentElement;
-    if (!root.classList.contains("vp-splash-on")) return;
     try {
+      if (location.pathname.startsWith("/admin") || location.pathname === "/login") return;
+      if (sessionStorage.getItem(SPLASH_KEY)) return;
       sessionStorage.setItem(SPLASH_KEY, "1");
+      root.classList.add("vp-splash-on");
     } catch {
-      /* private mode: splash may show again next load, which is harmless */
+      if (!location.pathname.startsWith("/admin") && location.pathname !== "/login")
+        root.classList.add("vp-splash-on");
     }
+    if (!root.classList.contains("vp-splash-on")) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const started = performance.now();
     let hideTimer = 0;

@@ -33,6 +33,7 @@ import {
   formatDateLong,
   formatTime12h,
   isBlockedWeekday,
+  isWithinServiceHours,
   todayInParish,
   weekdayName,
 } from "@/lib/booking/schedule";
@@ -51,10 +52,16 @@ type Props = {
   };
   /** Rendered inside the signed-in portal: submissions are saved to the account. */
   signedIn?: boolean;
+  account?: {
+    fullname: string;
+    email: string;
+    phone?: string | null;
+  };
 };
 
-export default function ServicesBooking({ gcashPayee, signedIn = false }: Props) {
+export default function ServicesBooking({ gcashPayee, signedIn = false, account }: Props) {
   const [openReqs, setOpenReqs] = useState<ReadonlySet<string>>(new Set());
+  const [selectedCatalogService, setSelectedCatalogService] = useState<string | null>(null);
   const {
     active,
     servicesState,
@@ -68,6 +75,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
   const [blessingChoice, setBlessingChoice] = useState("");
   const [blessingError, setBlessingError] = useState(false);
   const [payment, setPayment] = useState<Payment>("");
+  const [serviceType, setServiceType] = useState<"ordinary" | "special" | null>(null);
   const [date, setDate] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -101,7 +109,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
         !pending &&
         (!dirty ||
           window.confirm(
-            "You have unsent booking details. Continue? Details stay available while switching views, but choosing another service or leaving or reloading this page discards them.",
+            "You have unsent appointment details. Continue? Details stay available while switching views, but choosing another service or leaving or reloading this page discards them.",
           )),
     );
   }, [registerGuard, pending, dirty]);
@@ -144,11 +152,12 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
     if (
       dirty &&
       !window.confirm(
-        "Choose another service and discard the current booking details?",
+        "Choose another service and discard the current appointment details?",
       )
     )
       return;
     setPayment("");
+    setServiceType(null);
     setDate("");
     setErrors({});
     setFormError(null);
@@ -182,6 +191,21 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
     });
   }
 
+  function validateTime(value: string) {
+    if (!value) {
+      clearError("bookTime");
+      return;
+    }
+    if (!isWithinServiceHours(value)) {
+      setErrors((prev) => ({
+        ...prev,
+        bookTime: `Please choose a time between ${formatTime12h(EARLIEST_TIME)} and ${formatTime12h(LATEST_TIME)}.`,
+      }));
+      return;
+    }
+    clearError("bookTime");
+  }
+
   function send(formData: FormData, fromGcash: boolean) {
     if (sendingRef.current) return;
     sendingRef.current = true;
@@ -207,7 +231,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
         }
         const fieldErrors = result?.fieldErrors ?? {};
         setErrors(fieldErrors);
-        setFormError(result?.formError ?? (result ? "Please check your booking details." : statusMessage(outcome.status)));
+        setFormError(result?.formError ?? (result ? "Please check your appointment details." : statusMessage(outcome.status)));
         const keys = Object.keys(fieldErrors);
         const stayOnGcash = fromGcash && keys.every((k) => GCASH_FIELDS.includes(k));
         setStep(stayOnGcash ? "gcash" : "form");
@@ -228,7 +252,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
       return;
     }
     if (date && isBlockedWeekday(date)) {
-      const message = `${weekdayName(date)} is not available for bookings. Please choose another date.`;
+      const message = `${weekdayName(date)} is not available for appointments. Please choose another date.`;
       setErrors((prev) => ({ ...prev, bookDate: message }));
       setFormError(message);
       return;
@@ -262,6 +286,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
 
   const today = todayInParish();
   const dateBlocked = date !== "" && isBlockedWeekday(date);
+  const hasServiceTypeChoice = service?.code === "baptism" || service?.code === "wedding";
 
   return (
     <PublicDialog
@@ -295,6 +320,8 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
             initialType={certificateType}
             visible={active === "services"}
             onDirtyChange={setDirty}
+            signedIn={signedIn}
+            account={account}
             onBack={() => {
               if (
                 !dirty ||
@@ -333,16 +360,31 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
             <div className="blocked-notice">
               <i className="fas fa-calendar-alt" aria-hidden="true" />
               <p>
-                Bookings are unavailable on Sundays and Tuesdays. Please choose
+                Appointments are unavailable on Sundays and Tuesdays. Please choose
                 another day.
               </p>
             </div>
-            <div className="cards-grid">
-              {SERVICE_CARDS.map((card) => {
+            <div className="service-catalog-menu" aria-label="Choose a parish service">
+              {SERVICE_CARDS.map((card) => (
+                <button
+                  type="button"
+                  key={card.slug}
+                  className={`service-catalog-word${selectedCatalogService === card.slug ? " active" : ""}`}
+                  aria-expanded={selectedCatalogService === card.slug}
+                  aria-controls={selectedCatalogService === card.slug ? `${card.slug}-details` : undefined}
+                  onClick={() => setSelectedCatalogService((current) => current === card.slug ? null : card.slug)}
+                >
+                  {card.title}
+                  <i className={`fas fa-chevron-${selectedCatalogService === card.slug ? "up" : "down"}`} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+            <div className="cards-grid service-catalog-details">
+              {SERVICE_CARDS.filter((card) => card.slug === selectedCatalogService).map((card) => {
                 const reqOpen = openReqs.has(card.slug);
                 const reqId = `req-${card.slug}`;
                 return (
-                  <div className="card" id={card.slug} key={card.slug}>
+                  <div className="card" id={`${card.slug}-details`} key={card.slug}>
                     <div className="card-icon-bg" aria-hidden="true">
                       <i className={`fas ${card.icon}`} />
                     </div>
@@ -394,7 +436,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
                             : openBooking(card.serviceCodes[0])
                         }
                       >
-                        Book Now
+                        Set Appointment
                       </button>
                       {card.certificate && (
                         <button
@@ -519,6 +561,29 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
                 aria-busy={pending}
               >
                 <input type="hidden" name="serviceCode" value={service.code} />
+                {hasServiceTypeChoice && (
+                  <div className="service-type-section service-type-first">
+                    <input type="hidden" name="serviceType" value={serviceType ?? ""} />
+                    <span className="service-type-label">Choose {service.name} Type <span className="req">*</span></span>
+                    <div className="service-type-options">
+                      <button type="button" className={`service-type-option${serviceType === "ordinary" ? " active" : ""}`} aria-pressed={serviceType === "ordinary"} onClick={() => { setServiceType("ordinary"); setDirty(true); }}>
+                        Ordinary {service.name}
+                      </button>
+                      <button type="button" className={`service-type-option${serviceType === "special" ? " active" : ""}`} aria-pressed={serviceType === "special"} onClick={() => { setServiceType("special"); setDirty(true); }}>
+                        Special {service.name}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {(!hasServiceTypeChoice || serviceType !== null) && (
+                  <>
+                {signedIn && account && (
+                  <>
+                    <input type="hidden" name="bookFullName" value={account.fullname} />
+                    <input type="hidden" name="bookEmail" value={account.email} />
+                    <input type="hidden" name="bookContact" value={account.phone ?? ""} />
+                  </>
+                )}
                 <div className="hp-field" aria-hidden="true">
                   <label htmlFor="website">Website</label>
                   <input
@@ -530,36 +595,40 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
                   />
                 </div>
 
-                <div className="form-row">
-                  <TextInput
-                    name="bookFullName"
-                    label="Full Name"
-                    required
-                    autoComplete="name"
-                    errors={errors}
-                    onEdit={clearError}
-                  />
-                  <TextInput
-                    name="bookContact"
-                    label="Contact Number"
-                    type="tel"
-                    required
-                    placeholder="09XX XXX XXXX"
-                    autoComplete="tel"
-                    errors={errors}
-                    onEdit={clearError}
-                  />
-                </div>
-                <TextInput
-                  name="bookEmail"
-                  label="Email Address"
-                  type="email"
-                  required
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  errors={errors}
-                  onEdit={clearError}
-                />
+                {!signedIn && (
+                  <>
+                    <div className="form-row">
+                      <TextInput
+                        name="bookFullName"
+                        label="Full Name"
+                        required
+                        autoComplete="name"
+                        errors={errors}
+                        onEdit={clearError}
+                      />
+                      <TextInput
+                        name="bookContact"
+                        label="Contact Number"
+                        type="tel"
+                        required
+                        placeholder="09XX XXX XXXX"
+                        autoComplete="tel"
+                        errors={errors}
+                        onEdit={clearError}
+                      />
+                    </div>
+                    <TextInput
+                      name="bookEmail"
+                      label="Email Address"
+                      type="email"
+                      required
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      errors={errors}
+                      onEdit={clearError}
+                    />
+                  </>
+                )}
 
                 <div className="form-row">
                   <div className="form-group">
@@ -623,9 +692,10 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
                       required
                       min={EARLIEST_TIME}
                       max={LATEST_TIME}
+                      step={60}
                       aria-invalid={Boolean(errors.bookTime)}
                       aria-describedby="f-bookTime-hint"
-                      onChange={() => clearError("bookTime")}
+                      onChange={(event) => validateTime(event.currentTarget.value)}
                     />
                     <div
                       className={`form-hint${errors.bookTime ? " warn" : ""}`}
@@ -663,7 +733,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
                   />
                   <span>
                     {dateBlocked
-                      ? `${weekdayName(date)} is not available for bookings. Please choose another date.`
+                      ? `${weekdayName(date)} is not available for appointments. Please choose another date.`
                       : ""}
                   </span>
                 </div>
@@ -692,21 +762,27 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
                   ),
                 )}
 
-                <div className="form-group">
-                  <label htmlFor="f-bookNotes">
-                    Additional Notes / Special Requests
-                  </label>
-                  <textarea
-                    id="f-bookNotes"
-                    name="bookNotes"
-                    maxLength={1000}
-                    placeholder="Any special instructions or requests..."
-                    aria-invalid={Boolean(errors.bookNotes)}
-                  />
-                  {errors.bookNotes && (
-                    <div className="form-hint warn">{errors.bookNotes}</div>
-                  )}
-                </div>
+                {(serviceType === "special" || !hasServiceTypeChoice) && (
+                  <div className="form-group">
+                    <label htmlFor={hasServiceTypeChoice ? "f-specialRequest" : "f-bookNotes"}>
+                      {hasServiceTypeChoice ? "Special Request" : "Additional Notes"}
+                      {hasServiceTypeChoice && <span className="req"> *</span>}
+                    </label>
+                    <textarea
+                      id={hasServiceTypeChoice ? "f-specialRequest" : "f-bookNotes"}
+                      name={hasServiceTypeChoice ? "specialRequest" : "bookNotes"}
+                      maxLength={1000}
+                      required={hasServiceTypeChoice}
+                      placeholder={hasServiceTypeChoice ? "Describe the special details or requests for your program..." : "Any additional instructions or requests..."}
+                      aria-invalid={hasServiceTypeChoice ? Boolean(errors.specialRequest) : Boolean(errors.bookNotes)}
+                    />
+                    {(hasServiceTypeChoice ? errors.specialRequest : errors.bookNotes) && (
+                      <div className="form-hint warn">
+                        {hasServiceTypeChoice ? errors.specialRequest : errors.bookNotes}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="payment-section-title" id="paymentTitle">
                   <i className="fas fa-wallet" aria-hidden="true" /> Payment
@@ -774,9 +850,11 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
                       ? "Submitting…"
                       : payment === "gcash"
                         ? "Continue to GCash"
-                        : "Confirm Booking"}
+                        : "Confirm Appointment"}
                   </button>
                 </div>
+                  </>
+                )}
               </form>
             </section>
           )}
@@ -817,7 +895,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
               </div>
               <div className="notice-box">
                 <i className="fas fa-shield-alt" aria-hidden="true" /> Your
-                booking stays <strong>pending and unpaid</strong> until the
+                appointment stays <strong>pending and unpaid</strong> until the
                 parish office verifies your GCash reference. Submitting a
                 reference does not mark it as paid.
               </div>
@@ -894,7 +972,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
                     className="btn btn-primary"
                     disabled={pending}
                   >
-                    {pending ? "Submitting…" : "Submit Booking"}
+                    {pending ? "Submitting…" : "Submit Appointment"}
                   </button>
                 </div>
               </form>
@@ -918,7 +996,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
                   ref={step === "success" ? stepHeadingRef : undefined}
                   tabIndex={-1}
                 >
-                  Booking Request Submitted
+                  Appointment Request Submitted
                 </h3>
                 <p className="modal-subtitle" role="status">
                   <strong>Your request has been submitted to the parish office.</strong>{" "}
@@ -962,7 +1040,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false }: Props)
                 office.{" "}
                 {created.paymentMethod === "church"
                   ? "Payment is made in person at the parish office."
-                  : "The parish office will verify your GCash reference before marking the booking as paid."}
+                  : "The parish office will verify your GCash reference before marking the appointment as paid."}
               </div>
               <div className="modal-actions">
                 <button

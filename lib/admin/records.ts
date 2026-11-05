@@ -149,12 +149,12 @@ export async function saveBookingCertificate(
       where: { id: params.bookingId },
       select: { reference: true, service: true, status: true, certificate: true },
     });
-    if (!booking) return { ok: false, reason: "not_found", message: "Booking not found." } as const;
+    if (!booking) return { ok: false, reason: "not_found", message: "Appointment not found." } as const;
     if (!needsCertificate(booking.service)) {
       return { ok: false, reason: "not_eligible", message: "This service does not issue a certificate." } as const;
     }
     if (booking.status !== "completed" && !booking.certificate) {
-      return { ok: false, reason: "not_eligible", message: "Certificates can only be created for completed bookings." } as const;
+      return { ok: false, reason: "not_eligible", message: "Certificates can only be created for completed appointments." } as const;
     }
     const previous = booking.certificate && typeof booking.certificate === "object" && !Array.isArray(booking.certificate) ? booking.certificate : {};
     await tx.booking.update({

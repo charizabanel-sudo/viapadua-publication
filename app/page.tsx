@@ -8,8 +8,10 @@ import { ServicesLink } from "@/components/public/PublicOverlayProvider";
 import ServicesBooking from "@/components/services/ServicesBooking";
 import { CONTACTS, DEVELOPERS, SITE } from "@/lib/site";
 import { getGcashPayee } from "@/lib/server/payment";
+import { getCurrentUser } from "@/lib/server/user-auth";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const account = await getCurrentUser();
   return (
     <div className="vp-home">
       <SiteHeader />
@@ -107,7 +109,11 @@ export default function HomePage() {
           </div>
         </section>
       </main>
-      <ServicesBooking gcashPayee={getGcashPayee()} />
+      <ServicesBooking
+        gcashPayee={getGcashPayee()}
+        signedIn={Boolean(account)}
+        account={account ? { fullname: account.fullname, email: account.email, phone: account.phone } : undefined}
+      />
     </div>
   );
 }

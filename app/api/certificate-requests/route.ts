@@ -4,7 +4,7 @@ import { ownsRecord } from "@/lib/portal/access";
 import { bucketKey, countEvents, recordEvents } from "@/lib/auth/rate-limit";
 import { generateBookingReference } from "@/lib/booking/reference";
 import { getDb } from "@/lib/server/db";
-import { getActor, guestAccess } from "@/lib/server/user-auth";
+import { getActor, getCurrentUser, guestAccess } from "@/lib/server/user-auth";
 import { getClientIp } from "@/lib/server/request";
 import { getAuthSecret } from "@/lib/server/env";
 import {
@@ -60,7 +60,17 @@ export async function GET() {
 }
 export async function POST(request: Request) {
   try {
-    const parsed = requestSchema.safeParse(await readMessagingBody(request));
+    const body = await readMessagingBody(request);
+    const raw: Record<string, unknown> =
+      body && typeof body === "object" ? { ...(body as Record<string, unknown>) } : {};
+    const user = await getCurrentUser();
+    if (user) {
+      raw.requesterName = user.fullname;
+      raw.email = user.email;
+      raw.phone = user.phone ?? "";
+    }
+    raw.parish = typeof raw.parish === "string" && raw.parish.trim() ? raw.parish : "San Antonio de Padua Parish";
+    const parsed = requestSchema.safeParse(raw);
     if (!parsed.success)
       throw new MessagingError(
         "invalid_request",

@@ -56,7 +56,7 @@ export async function listBookings(db: Db, filters: BookingFilters): Promise<{ i
   const items = await db.booking.findMany({
     where,
     select: listSelect,
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }, { id: "desc" }],
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     skip: (page - 1) * ADMIN_PAGE_SIZE,
     take: ADMIN_PAGE_SIZE,
   });

@@ -112,10 +112,10 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
                           <ActionButton
                             action={toggleBlockedDateAction}
                             fields={{ date: iso, mode: "block" }}
-                            confirm={`Block ${formatDateLong(iso)} for new bookings?${bks.some((b) => b.status !== "completed") ? "\n\nExisting bookings on this date will be kept." : ""}`}
+                            confirm={`Block ${formatDateLong(iso)} for new appointments?${bks.some((b) => b.status !== "completed") ? "\n\nExisting appointments on this date will be kept." : ""}`}
                             className="icon-btn danger"
-                            ariaLabel={`Block ${formatDateLong(iso)} for bookings`}
-                            title="Block date for bookings"
+                            ariaLabel={`Block ${formatDateLong(iso)} for appointments`}
+                            title="Block date for appointments"
                             pendingLabel=""
                           >
                             <i className="fas fa-ban" aria-hidden="true" />
@@ -153,7 +153,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Sea
             </span>
           ))}
           <span>
-            <i className="dot booking" aria-hidden="true" /> Guest booking
+            <i className="dot booking" aria-hidden="true" /> Guest appointment
           </span>
           <span>
             <i className="dot blocked" aria-hidden="true" /> Blocked date

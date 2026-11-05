@@ -42,7 +42,7 @@ function UserSignInDialog() {
           <div className="login-logo" aria-hidden="true"><i className="fas fa-church" /></div>
           <span className="login-role">Parishioner account</span>
           <h2 id={titleId}>Sign In</h2>
-          <p>Bookings, receipts, certificates and messages</p>
+          <p>Appointments, receipts, certificates and messages</p>
         </div>
         {/* Remount after a sign-out/sign-in cycle so stale errors never reappear. */}
         {active === "signin" && <AccountForm idPrefix="home-user-" next={next} />}

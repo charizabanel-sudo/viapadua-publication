@@ -95,7 +95,7 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
           <div className="empty-state">
             <i className="fas fa-inbox" aria-hidden="true" />
             <p>No records found.</p>
-            <p>{q || status ? "Try a different search or status." : "Guest bookings will appear here after they are submitted."}</p>
+            <p>{q || status ? "Try a different search or status." : "Guest appointments will appear here after they are submitted."}</p>
           </div>
         ) : (
           <div className="record-list">

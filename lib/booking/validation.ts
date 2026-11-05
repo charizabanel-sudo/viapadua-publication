@@ -69,10 +69,18 @@ const baseSchema = z.object({
     .min(1, "Email address is required.")
     .max(255, "Email address is too long.")
     .pipe(z.email("Enter a valid email address.")),
-  bookContact: phoneSchema("Contact number"),
+  bookContact: z
+    .string()
+    .trim()
+    .transform((value) => {
+      if (!value) return "";
+      const phone = normalizePhone(value);
+      return phone || "";
+    }),
   bookDate: z.string().trim().min(1, "Preferred date is required."),
   bookTime: z.string().trim().min(1, "Preferred time is required."),
   bookNotes: cleanText(1000, "Notes").optional().default(""),
+  specialRequest: cleanText(1000, "Special request").optional().default(""),
   payment_method: z.enum(["gcash", "church"], { error: "Please choose a payment method." }),
 });
 
@@ -139,9 +147,15 @@ export function validateBookingInput(raw: Record<string, string>, now: Date = ne
     bookDate: get("bookDate"),
     bookTime: get("bookTime"),
     bookNotes: get("bookNotes"),
+    specialRequest: get("specialRequest"),
     payment_method: get("payment_method") || undefined,
   });
   if (!base.success) collectErrors(base.error, fieldErrors);
+  if (get("bookContact").trim() && !normalizePhone(get("bookContact"))) {
+    fieldErrors.bookContact = "Enter a valid mobile number (e.g. 0917 123 4567).";
+  } else if (!get("bookContact").trim()) {
+    fieldErrors.bookContact = "Mobile number is required.";
+  }
 
   const date = get("bookDate").trim();
   if (date && !fieldErrors.bookDate) {
@@ -159,6 +173,21 @@ export function validateBookingInput(raw: Record<string, string>, now: Date = ne
 
   const today = todayInParish(now);
   const details: Record<string, string> = {};
+  if (service.code === "baptism" || service.code === "wedding") {
+    const serviceType = get("serviceType");
+    if (serviceType === "ordinary" || serviceType === "special") {
+      details.serviceType = serviceType === "special" ? "Special" : "Ordinary";
+      if (serviceType === "special") {
+        if (!base.success || !base.data.specialRequest) {
+          fieldErrors.specialRequest = "Special request is required for special appointments.";
+        } else {
+          details.specialRequest = base.data.specialRequest;
+        }
+      }
+    } else {
+      fieldErrors.serviceType = "Choose an ordinary or special appointment.";
+    }
+  }
   for (const row of service.fields) {
     for (const field of row) {
       const parsed = fieldSchema(field, today).safeParse(get(field.name));

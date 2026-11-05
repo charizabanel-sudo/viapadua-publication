@@ -18,7 +18,7 @@ export const requestSchema = z
       .email()
       .max(255)
       .transform((v) => v.toLowerCase()),
-    phone: z.string().trim().min(7).max(30),
+    phone: z.string().trim().max(30).default(""),
     recipientName: z.string().trim().min(2).max(100),
     spouseName: z.string().trim().max(100).default(""),
     fatherName: z.string().trim().max(100).default(""),
@@ -29,8 +29,8 @@ export const requestSchema = z
         (v) => Boolean(parseIsoDate(v)) && v <= todayInParish(),
         "Enter the past sacrament date.",
       ),
-    parish: z.string().trim().min(2).max(200),
-    purpose: z.string().trim().min(3).max(500),
+    parish: z.string().trim().min(2).max(200).default("San Antonio de Padua Parish"),
+    purpose: z.string().trim().max(500).default(""),
   })
   .strict()
   .superRefine((v, ctx) => {
@@ -38,12 +38,18 @@ export const requestSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["spouseName"],
-        message: "Enter the other spouse's name.",
+        message: "Enter the spouse's name.",
       });
-    if (v.type === "baptism" && (!v.fatherName || !v.motherName))
+    if (v.type === "baptism" && !v.motherName)
+      ctx.addIssue({
+        code: "custom",
+        path: ["motherName"],
+        message: "Enter the mother's name to locate the baptism record.",
+      });
+    if (v.type === "baptism" && !v.fatherName)
       ctx.addIssue({
         code: "custom",
         path: ["fatherName"],
-        message: "Enter both parents' names to locate the baptism record.",
+        message: "Enter the father's name to locate the baptism record.",
       });
   });

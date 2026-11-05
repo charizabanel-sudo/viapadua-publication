@@ -23,20 +23,22 @@ export default async function AccountPage({
   return (
     <>
       <SiteHeader />
-      <main className="portal-content portal-auth portal-card">
-        <span className="login-role">Parishioner account</span>
-        <h1>Create your account</h1>
-        <p>Manage your parish bookings, receipts and certificate requests.</p>
-        <AccountForm register next={next} idPrefix="register-" />
-        <p>
-          <Link href={signInHref(next)}>Already registered? Sign in</Link>
-        </p>
-        <p>
-          Legacy accounts can use their existing password. Contact the parish
-          office if access is unavailable.
-        </p>
-        <Link href="/?services=1">Continue with guest services</Link>
-      </main>
+      <div className="account-register-page">
+        <main className="portal-content portal-auth portal-card">
+          <span className="login-role">Parishioner account</span>
+          <h1>Create your account</h1>
+          <p>Manage your parish appointments, receipts and certificate requests.</p>
+          <AccountForm register next={next} idPrefix="register-" />
+          <p>
+            <Link href={signInHref(next)}>Already registered? Sign in</Link>
+          </p>
+          <p>
+            Legacy accounts can use their existing password. Contact the parish
+            office if access is unavailable.
+          </p>
+          <Link href="/?services=1">Continue with guest services</Link>
+        </main>
+      </div>
     </>
   );
 }

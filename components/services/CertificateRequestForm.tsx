@@ -17,11 +17,15 @@ export default function CertificateRequestForm({
   onBack,
   visible,
   onDirtyChange,
+  signedIn = false,
+  account,
 }: {
   initialType: string;
   onBack: () => void;
   visible: boolean;
   onDirtyChange: (dirty: boolean) => void;
+  signedIn?: boolean;
+  account?: { fullname: string; email: string; phone?: string | null };
 }) {
   const [type, setType] = useState(initialType),
     [busy, setBusy] = useState(false),
@@ -130,12 +134,14 @@ export default function CertificateRequestForm({
           </select>
         </label>
         {[
-          ["requesterName", "Your full name"],
-          ["email", "Your email"],
-          ["phone", "Contact number"],
+          ...(!signedIn ? [
+            ["requesterName", "Your full name"],
+            ["email", "Your email"],
+            ["phone", "Contact number"],
+          ] : []),
           ["recipientName", "Name on the parish record"],
           ...(type === "wedding"
-            ? [["spouseName", "Other spouse's full name"]]
+            ? [["spouseName", "Spouse's full name"]]
             : []),
           ...(type === "baptism"
             ? [
@@ -144,8 +150,6 @@ export default function CertificateRequestForm({
               ]
             : []),
           ["sacramentDate", "Sacrament date"],
-          ["parish", "Church / place of sacrament"],
-          ["purpose", "Purpose of request"],
         ].map(([name, label]) => (
           <label key={name}>
             {label}
@@ -160,16 +164,21 @@ export default function CertificateRequestForm({
                       ? "tel"
                       : "text"
               }
-              required
-              maxLength={
-                name === "purpose" ? 500 : name === "email" ? 255 : 100
-              }
+              required={name !== "fatherName"}
+              maxLength={name === "email" ? 255 : 100}
               defaultValue={
                 name === "parish" ? "San Antonio de Padua Parish" : undefined
               }
             />
           </label>
         ))}
+        {signedIn && account && (
+          <>
+            <input type="hidden" name="requesterName" value={account.fullname} />
+            <input type="hidden" name="email" value={account.email} />
+            <input type="hidden" name="phone" value={account.phone ?? ""} />
+          </>
+        )}
         {error && (
           <p className="form-alert" role="alert">
             {error}

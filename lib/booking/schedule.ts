@@ -14,8 +14,8 @@ export const BLOCKED_WEEKDAYS: readonly number[] = [0, 2];
 export const MAX_ADVANCE_DAYS = 365;
 
 /** Accepted start times (inclusive), 24h "HH:MM". */
-export const EARLIEST_TIME = "06:00";
-export const LATEST_TIME = "18:00";
+export const EARLIEST_TIME = "07:00";
+export const LATEST_TIME = "17:00";
 
 /** Two active bookings on the same date must start at least this many minutes apart. */
 export const SLOT_MINUTES = 60;
@@ -105,10 +105,10 @@ export function checkBookingDate(iso: string, now: Date = new Date()): DateRuleE
   const today = todayInParish(now);
   if (iso < today) return { code: "past", message: "Please choose today or a future date." };
   if (iso > addDays(today, MAX_ADVANCE_DAYS)) {
-    return { code: "too_far", message: `Bookings can be made up to ${MAX_ADVANCE_DAYS} days ahead.` };
+    return { code: "too_far", message: `Appointments can be requested up to ${MAX_ADVANCE_DAYS} days ahead.` };
   }
   if (isBlockedWeekday(iso)) {
-    return { code: "blocked_weekday", message: `${weekdayName(iso)} is not available for bookings. Please choose another date.` };
+    return { code: "blocked_weekday", message: `${weekdayName(iso)} is not available for appointments. Please choose another date.` };
   }
   return null;
 }

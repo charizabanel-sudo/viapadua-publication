@@ -81,7 +81,7 @@ export async function createBookingRecord(db: Db, input: ValidBooking, ownership
 
           const blocked = await tx.blockedDate.findUnique({ where: { date: bookingDate }, select: { id: true } });
           if (blocked) {
-            throw new BookingRuleError("bookDate", "The parish is not accepting bookings on this date. Please choose another date.");
+            throw new BookingRuleError("bookDate", "The parish is not accepting appointments on this date. Please choose another date.");
           }
 
           const sameDay = await tx.booking.findMany({
@@ -95,7 +95,7 @@ export async function createBookingRecord(db: Db, input: ValidBooking, ownership
           if (conflict) {
             throw new BookingRuleError(
               "bookTime",
-              `This time is no longer available (another booking starts at ${formatTime12h(conflict)}). Please choose a time at least ${SLOT_MINUTES} minutes apart or another date.`,
+              `This time is no longer available (another appointment starts at ${formatTime12h(conflict)}). Please choose a time at least ${SLOT_MINUTES} minutes apart or another date.`,
             );
           }
 

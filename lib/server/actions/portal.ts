@@ -9,6 +9,114 @@ import { requireUser } from "@/lib/server/user-auth";
 import { cookies } from "next/headers";
 import { isProduction } from "@/lib/server/env";
 import { linkGuestConversation } from "@/lib/messaging/account";
+import {
+  checkBookingDate,
+  findSlotConflict,
+  isWithinServiceHours,
+  parseIsoDate,
+} from "@/lib/booking/schedule";
+
+export async function updateUserAppointment(form: FormData) {
+  const user = await requireUser();
+  const bookingId = Number(form.get("bookingId"));
+  const date = String(form.get("bookingDate") ?? "").trim();
+  const time = String(form.get("bookingTime") ?? "").trim();
+  if (!Number.isInteger(bookingId) || bookingId <= 0)
+    return { ok: false, message: "Invalid appointment." };
+  if (!parseIsoDate(date) || checkBookingDate(date))
+    return {
+      ok: false,
+      message:
+        checkBookingDate(date)?.message ?? "Choose a valid appointment date.",
+    };
+  if (!isWithinServiceHours(time))
+    return {
+      ok: false,
+      message: "Choose an appointment time from 7:00 AM to 5:00 PM.",
+    };
+
+  try {
+    await getDb().$transaction(async (tx) => {
+      const booking = await tx.booking.findFirst({
+        where: {
+          id: bookingId,
+          userId: user.id,
+          status: { in: ["pending", "confirmed"] },
+        },
+      });
+      if (!booking)
+        throw new Error("This appointment can no longer be updated.");
+      const conflicts = await tx.booking.findMany({
+        where: {
+          id: { not: bookingId },
+          bookingDate: new Date(`${date}T00:00:00.000Z`),
+          status: { in: ["pending", "confirmed"] },
+        },
+        select: { bookingTime: true },
+      });
+      if (findSlotConflict(time, conflicts.map((item) => item.bookingTime)))
+        throw new Error("That appointment time conflicts with another schedule.");
+      await tx.booking.update({
+        where: { id: bookingId },
+        data: {
+          bookingDate: new Date(`${date}T00:00:00.000Z`),
+          bookingTime: time,
+          updatedAt: new Date(),
+        },
+      });
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Appointment could not be updated.",
+    };
+  }
+  revalidatePath("/portal");
+  return { ok: true, message: "Appointment schedule updated." };
+}
+
+export async function cancelUserAppointment(form: FormData) {
+  const user = await requireUser();
+  const bookingId = Number(form.get("bookingId"));
+  if (!Number.isInteger(bookingId) || bookingId <= 0)
+    return { ok: false, message: "Invalid appointment." };
+  const db = getDb();
+  const result = await db.$transaction(async (tx) => {
+    const booking = await tx.booking.findFirst({
+      where: {
+        id: bookingId,
+        userId: user.id,
+        status: { in: ["pending", "confirmed"] },
+      },
+    });
+    if (!booking) return null;
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: "cancelled",
+        statusChangedAt: new Date(),
+        statusChangedById: null,
+      },
+    });
+    await tx.bookingStatusEvent.create({
+      data: {
+        bookingId,
+        fromStatus: booking.status,
+        toStatus: "cancelled",
+        adminId: null,
+      },
+    });
+    return booking.reference;
+  });
+  if (!result)
+    return { ok: false, message: "This appointment can no longer be cancelled." };
+  revalidatePath("/portal");
+  return { ok: true, message: `Appointment ${result} cancelled.` };
+}
+
 export async function linkGuestChatAction(form: FormData) {
   const user = await requireUser();
   if (form.get("consent") !== "yes")
@@ -31,6 +139,7 @@ export async function linkGuestChatAction(form: FormData) {
   revalidatePath("/portal");
   return { ok: true, message: "Guest conversation linked to your account." };
 }
+
 export async function reviewCertificateRequest(form: FormData) {
   const admin = await requireAdmin();
   const input = z
@@ -55,7 +164,6 @@ export async function reviewCertificateRequest(form: FormData) {
         releasedAt: null,
       },
     });
-    // A new review revokes prior release until staff explicitly release again.
     await tx.privateDocument.updateMany({
       where: { requestId: input.id, kind: "certificate" },
       data: { released: false },
@@ -73,6 +181,7 @@ export async function reviewCertificateRequest(form: FormData) {
   revalidatePath("/portal");
   return { ok: true, message: "Certificate review saved." };
 }
+
 export async function saveRequestCertificateAction(id: string, raw: unknown) {
   await requireAdmin();
   const parsed = validateCertificate(raw);

@@ -52,10 +52,10 @@ function formatTimestamp(date: Date): string {
 
 function noticeMessage(notice: string): { kind: "success" | "error"; text: string } | null {
   const [kind, ref] = notice.split(":");
-  if (kind === "confirmed") return { kind: "success", text: `Booking ${ref} confirmed.` };
-  if (kind === "cancelled") return { kind: "success", text: `Booking ${ref} cancelled.` };
-  if (kind === "stale") return { kind: "error", text: `Booking ${ref} was already updated, so no change was made. The list shows its current status.` };
-  if (kind === "not_found") return { kind: "error", text: "That booking no longer exists." };
+  if (kind === "confirmed") return { kind: "success", text: `Appointment ${ref} confirmed.` };
+  if (kind === "cancelled") return { kind: "success", text: `Appointment ${ref} cancelled.` };
+  if (kind === "stale") return { kind: "error", text: `Appointment ${ref} was already updated, so no change was made. The list shows its current status.` };
+  if (kind === "not_found") return { kind: "error", text: "That appointment no longer exists." };
   if (kind === "invalid") return { kind: "error", text: "Invalid request." };
   return null;
 }
@@ -97,18 +97,18 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
   return (
     <>
       <header className="page-header">
-        <h1>Manage Bookings</h1>
-        <p>Review, confirm, or cancel bookings submitted by parishioners</p>
+        <h1>Manage Appointments</h1>
+        <p>Review, confirm, or cancel appointments submitted by parishioners</p>
       </header>
 
-      <nav className="sample-toggle" aria-label="Booking set">
+      <nav className="sample-toggle" aria-label="Appointment set">
         {samples ? (
           <>
-            <span className="sample-badge">Sample/Demo</span> Fictional bookings for demonstrations. They are excluded from reports, exports and dashboard totals.{" "}
-            <Link href="/admin/bookings">Back to real bookings</Link>
+            <span className="sample-badge">Sample/Demo</span> Fictional appointments for demonstrations. They are excluded from reports, exports and dashboard totals.{" "}
+            <Link href="/admin/bookings">Back to real appointments</Link>
           </>
         ) : (
-          <Link href="/admin/bookings?samples=1">View Sample/Demo bookings</Link>
+          <Link href="/admin/bookings?samples=1">View Sample/Demo appointments</Link>
         )}
       </nav>
 
@@ -136,7 +136,7 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
               defaultValue={q}
               maxLength={100}
               placeholder="Search by name, email, reference, or service..."
-              aria-label="Search bookings"
+              aria-label="Search appointments"
             />
           </div>
           <span className="filter-icon" aria-hidden="true">
@@ -163,14 +163,14 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
       <section className="payments-container">
         <h2 className="payments-title">
           {samples ? "Sample/Demo " : ""}
-          {status ? `${STATUS_LABEL[status]} Bookings` : "All Bookings"} ({list.total})
+          {status ? `${STATUS_LABEL[status]} Appointments` : "All Appointments"} ({list.total})
         </h2>
 
         {list.items.length === 0 ? (
           <div className="empty-state">
             <i className="fas fa-inbox" aria-hidden="true" />
-            <p>No bookings found.</p>
-            <p>{q || status ? "Try a different search or status filter." : "Bookings from parishioners will appear here."}</p>
+            <p>No appointments found.</p>
+            <p>{q || status ? "Try a different search or status filter." : "Appointments from parishioners will appear here."}</p>
           </div>
         ) : (
           list.items.map((b) => <BookingCard key={b.id} booking={b} viewHref={href({ view: String(b.id) })} returnTo={returnTo} />)
@@ -315,7 +315,7 @@ function DetailsModal({ booking: b, closeHref, returnTo }: { booking: BookingDet
     <BookingDetailsDialog closeHref={closeHref}>
       <div className="modal-content">
         <div className="modal-header">
-          <h2 id="detailsTitle">Booking Details</h2>
+          <h2 id="detailsTitle">Appointment Details</h2>
           <Link href={closeHref} className="close" aria-label="Close" scroll={false}>
             ×
           </Link>
@@ -326,7 +326,6 @@ function DetailsModal({ booking: b, closeHref, returnTo }: { booking: BookingDet
           <Detail label="Status" value={STATUS_LABEL[b.status]} />
           <Detail label="Requester" value={b.requesterName} />
           <Detail label="Email" value={b.requesterEmail} />
-          <Detail label="Phone" value={b.requesterPhone ?? ""} />
           <Detail label="Service" value={b.service} />
           <Detail label="Date" value={formatDateLong(toIsoDate(b.bookingDate))} />
           <Detail label="Time" value={formatTime12h(b.bookingTime)} />
@@ -342,7 +341,7 @@ function DetailsModal({ booking: b, closeHref, returnTo }: { booking: BookingDet
             </>
           )}
           <Detail label="Submitted" value={formatTimestamp(b.createdAt)} />
-          <Detail label="Source" value={b.source === "legacy" ? "Legacy system import" : "Online guest booking"} />
+          <Detail label="Source" value={b.source === "legacy" ? "Legacy system import" : "Online guest appointment"} />
         </div>
 
         {entries.length > 0 && (

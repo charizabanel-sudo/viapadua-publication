@@ -1,4 +1,4 @@
-/* First-visit splash. Hidden unless the pre-paint script adds html.vp-splash-on (no JS → never shown). */
+/* First-visit splash. Hidden unless client initialization adds html.vp-splash-on. */
 @keyframes vpSplashIn {
     from { opacity: 0; transform: translateY(6px) scale(0.97); }
     to   { opacity: 1; transform: none; }

@@ -45,19 +45,19 @@ export type ServiceCard = {
   certificate?: { name: string; fee: number };
 };
 
-const fatherName: ServiceField = {
-  name: "fatherName",
-  label: "Father's Full Name",
-  type: "text",
-  required: true,
-  placeholder: "First Name, Middle Name, Last Name",
-};
 const motherName: ServiceField = {
   name: "motherName",
   label: "Mother's Full Name (Maiden)",
   type: "text",
   required: true,
   placeholder: "First Name, Middle Name, Maiden Last Name",
+};
+const fatherName: ServiceField = {
+  name: "fatherName",
+  label: "Father's Full Name",
+  type: "text",
+  required: true,
+  placeholder: "First Name, Middle Name, Last Name",
 };
 
 function blessingFields(typeLabel: "House" | "Business"): FieldRows {
@@ -105,8 +105,7 @@ export const BOOKABLE_SERVICES: readonly BookableService[] = [
           placeholder: "City / Municipality, Province",
         },
       ],
-      [fatherName],
-      [motherName],
+      [fatherName, motherName],
       [
         {
           name: "godparents",
@@ -133,16 +132,6 @@ export const BOOKABLE_SERVICES: readonly BookableService[] = [
           type: "text",
           required: true,
           placeholder: "Names of witnesses (comma separated)",
-          maxLength: 255,
-        },
-      ],
-      [
-        {
-          name: "weddingNotes",
-          label: "Wedding Details / Notes",
-          type: "text",
-          required: false,
-          placeholder: "e.g., Number of guests, reception location",
           maxLength: 255,
         },
       ],

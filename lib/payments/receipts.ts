@@ -179,7 +179,7 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Parish Payment Receipt ${s.receiptNumber}`);
   pdf.setAuthor(s.parish.name);
-  pdf.setSubject(`Payment receipt for booking ${s.bookingReference}`);
+  pdf.setSubject(`Payment receipt for appointment ${s.bookingReference}`);
   pdf.setCreator("Via Padua Parish Management System");
   const page = pdf.addPage([595.28, 420]);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
@@ -208,7 +208,7 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
   const rows: [string, string][] = [
     ["Received from", s.payerName],
     ["Service", s.service],
-    ["Booking reference", s.bookingReference],
+    ["Appointment reference", s.bookingReference],
     ["Payment method", s.paymentMethodLabel],
     ...(s.gcashReference ? ([["GCash reference", s.gcashReference]] as [string, string][]) : []),
     ["Payment date", longDate(s.paymentDate)],
@@ -236,11 +236,11 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
 
 /** Admin-facing messages for a refused payment action. */
 export const PAYMENT_MESSAGES: Record<PaymentFailure, string> = {
-  not_found: "Booking not found.",
-  already_paid: "This booking is already marked as paid.",
-  cancelled: "Cancelled bookings can't be marked as paid.",
+  not_found: "Appointment not found.",
+  already_paid: "This appointment is already marked as paid.",
+  cancelled: "Cancelled appointments can't be marked as paid.",
   verification_required: "Confirm that you verified this payment before recording it as paid.",
-  missing_fee: "This booking has no fee recorded, so a receipt amount can't be issued. Correct the booking first.",
-  missing_method: "This booking has no payment method recorded. Correct the booking before recording payment.",
+  missing_fee: "This appointment has no fee recorded, so a receipt amount can't be issued. Correct the appointment first.",
+  missing_method: "This appointment has no payment method recorded. Correct the appointment before recording payment.",
   historical_incomplete: "This older payment has no recorded payment date, method or amount, so no receipt can be generated. Upload the parish's receipt instead if one exists.",
 };

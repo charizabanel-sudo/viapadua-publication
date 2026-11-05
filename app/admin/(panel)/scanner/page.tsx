@@ -56,7 +56,7 @@ export default async function ScannerPage({
           )}
           <p>
             {d.bookingId
-              ? `Booking #${d.bookingId}`
+              ? `Appointment #${d.bookingId}`
               : d.requestId
                 ? `Certificate request ${d.requestId}`
                 : "Unassigned"}{" "}

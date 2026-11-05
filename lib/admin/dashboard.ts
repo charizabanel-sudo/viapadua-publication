@@ -33,7 +33,7 @@ export async function getDashboardData(db: Db, now: Date = new Date()) {
       db.booking.count({ where: { ...EXCLUDE_SAMPLES, status: { in: ["pending", "confirmed"] }, paymentStatus: "unpaid" } }),
       db.booking.findMany({
         where: { ...EXCLUDE_SAMPLES, status: "pending" },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: 6,
         select: { id: true, reference: true, requesterName: true, service: true, bookingDate: true, bookingTime: true, createdAt: true },
       }),

@@ -56,6 +56,19 @@
         .blocked-notice strong { color: #7f1d1d; }
 
         .cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
+        .service-catalog-menu { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .service-catalog-word { min-height: 54px; padding: 12px 16px; border: 1px solid #d9dee7; border-radius: 10px; background: #ffffff; color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 8px rgba(20, 40, 70, 0.05); transition: border-color 0.2s, color 0.2s, transform 0.2s, box-shadow 0.2s; }
+        .service-catalog-word i { color: var(--accent); font-size: 12px; }
+        .service-catalog-word:hover, .service-catalog-word.active { border-color: var(--accent); color: var(--brand); transform: translateY(-2px); box-shadow: 0 5px 14px rgba(20, 40, 70, 0.1); }
+        .service-catalog-details { grid-template-columns: minmax(0, 620px); justify-content: center; }
+        .service-catalog-details:empty { display: none; }
+        @media (max-width: 760px) {
+            .service-catalog-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 420px) {
+            .service-catalog-menu { grid-template-columns: 1fr; }
+            .service-type-options { grid-template-columns: 1fr; }
+        }
         .card {
             background: #ffffff; border-radius: 12px; padding: 24px 26px 26px;
             border: 1px solid #e4e4e4; box-shadow: 0 3px 10px rgba(20, 40, 70, 0.06);
@@ -134,6 +147,11 @@
         .modal-subtitle { font-size: 16px; color: var(--muted); margin-bottom: 20px; }
 
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+        .service-type-section { margin-bottom: 18px; }
+        .service-type-label { display: block; margin-bottom: 8px; font-size: 12px; font-weight: 700; color: #374151; }
+        .service-type-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .service-type-option { min-height: 46px; padding: 10px 14px; border: 1px solid #d3d6da; border-radius: 8px; background: #ffffff; color: var(--ink); font-weight: 700; cursor: pointer; }
+        .service-type-option:hover, .service-type-option.active { border-color: var(--accent); background: var(--surface-soft); color: var(--brand); }
         .form-group { margin-bottom: 14px; text-align: left; }
         .form-group label {
             display: block; font-size: 12px; font-weight: 600;
@@ -211,7 +229,7 @@
         .payment-option-info { pointer-events: none; }
 
         .modal-actions { display: flex; gap: 12px; margin-top: 6px; }
-        .modal-actions .btn { padding: 14px 0; font-size: 13px; }
+        .modal-actions .btn { min-height: 48px; padding: 14px 18px; font-size: 16px; font-weight: 700; flex: 1; }
 
         .gcash-info-box {
             background: #e0f2fe; border-left: 4px solid #0369a1;

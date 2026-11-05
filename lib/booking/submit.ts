@@ -25,7 +25,7 @@ export async function submitBookingForm(formData: FormData): Promise<BookingResu
 
   // Honeypot field: real visitors never fill it.
   if (raw.website) {
-    return { status: "error", formError: "Your booking could not be submitted. Please try again.", fieldErrors: {} };
+    return { status: "error", formError: "Your appointment could not be submitted. Please try again.", fieldErrors: {} };
   }
 
   // One id per submission attempt; retries after an uncertain network outcome reuse it.
@@ -33,9 +33,14 @@ export async function submitBookingForm(formData: FormData): Promise<BookingResu
 
   try {
     const db = getDb();
+    const user = await getCurrentUser();
+    if (user) {
+      raw.bookFullName = user.fullname;
+      raw.bookEmail = user.email;
+      raw.bookContact = user.phone ?? "";
+    }
     // A replay of an already-saved submission succeeds even if rules or limits would now refuse it.
     if (clientRequestId) {
-      const user = await getCurrentUser();
       const replay = await findBookingReplay(db, clientRequestId, { userId: user?.id, guestHash: user ? undefined : (await guestAccess())?.hash });
       if (replay && replay !== "foreign") return { status: "success", booking: replay };
     }
@@ -47,12 +52,11 @@ export async function submitBookingForm(formData: FormData): Promise<BookingResu
     if ((await countEvents(db, ipBucket, HOUR_MS)) >= BOOKINGS_PER_IP_PER_HOUR) {
       return {
         status: "error",
-        formError: "Too many booking requests from your network. Please try again later or contact the parish office.",
+        formError: "Too many appointment requests from your network. Please try again later or contact the parish office.",
         fieldErrors: {},
       };
     }
 
-    const user = await getCurrentUser();
     const guest = user ? undefined : await guestAccess(true);
     const file = formData.get("paymentProof");
     let proof;
@@ -66,9 +70,9 @@ export async function submitBookingForm(formData: FormData): Promise<BookingResu
     }
     if (error instanceof ConfigError) {
       console.error("[booking] configuration error:", error.message);
-      return { status: "error", formError: "Online booking is temporarily unavailable. Please contact the parish office.", fieldErrors: {} };
+      return { status: "error", formError: "Online appointment requests are temporarily unavailable. Please contact the parish office.", fieldErrors: {} };
     }
     console.error("[booking] failed to create booking:", error);
-    return { status: "error", formError: "We couldn't save your booking right now. Please try again in a moment.", fieldErrors: {} };
+    return { status: "error", formError: "We couldn't save your appointment right now. Please try again in a moment.", fieldErrors: {} };
   }
 }

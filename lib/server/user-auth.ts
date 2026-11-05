@@ -17,32 +17,40 @@ const guestCookieName = () =>
 export const getCurrentUser = cache(async () => {
   const token = (await cookies()).get(userCookieName())?.value;
   if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
-  const session = await getDb().userSession.findUnique({
-    where: { id: hashSessionToken(token) },
-    include: {
-      user: {
-        select: {
-          id: true,
-          fullname: true,
-          email: true,
-          isActive: true,
-          role: true,
+  try {
+    const session = await getDb().userSession.findUnique({
+      where: { id: hashSessionToken(token) },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullname: true,
+            email: true,
+            phone: true,
+            isActive: true,
+            role: true,
+          },
         },
       },
-    },
-  });
-  if (
-    !session ||
-    session.expiresAt <= new Date() ||
-    !session.user.isActive ||
-    session.user.role !== "user"
-  )
+    });
+    if (
+      !session ||
+      session.expiresAt <= new Date() ||
+      !session.user.isActive ||
+      session.user.role !== "user"
+    )
+      return null;
+    return {
+      id: session.user.id,
+      name: session.user.fullname,
+      fullname: session.user.fullname,
+      email: session.user.email,
+      phone: session.user.phone,
+    };
+  } catch (error) {
+    console.error("Unable to resolve user session:", error);
     return null;
-  return {
-    id: session.user.id,
-    name: session.user.fullname,
-    email: session.user.email,
-  };
+  }
 });
 /** Signed-out (or expired) visitors land on the homepage sign-in card, returning to `next` afterwards. */
 export async function requireUser(next = "/portal") {

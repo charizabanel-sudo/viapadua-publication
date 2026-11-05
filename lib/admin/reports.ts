@@ -181,7 +181,7 @@ export async function exportRowsForWhere(db: Db, where: Prisma.BookingWhereInput
       r.paymentStatus,
       r.gcashReference ?? "",
       r.certificate ? "Yes" : "No",
-      r.source === "legacy" ? "Legacy import" : "Online guest booking",
+      r.source === "legacy" ? "Legacy import" : "Online guest appointment",
       r.createdAt.toISOString(),
     ]),
   ];
@@ -189,7 +189,7 @@ export async function exportRowsForWhere(db: Db, where: Prisma.BookingWhereInput
 
 export function guestExportRows(guests: GuestRow[]): string[][] {
   return [
-    ["Name", "Email", "Phone", "Bookings", "Active", "Completed", "Cancelled", "Paid Total (PHP)", "Last Booking Date"],
+    ["Name", "Email", "Phone", "Appointments", "Active", "Completed", "Cancelled", "Paid Total (PHP)", "Last Appointment Date"],
     ...guests.map((g) => [
       g.name,
       g.email,
