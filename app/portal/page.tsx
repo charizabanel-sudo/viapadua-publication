@@ -98,10 +98,10 @@ export default async function PortalPage({ searchParams }: { searchParams: Promi
         )}
         {tab === "receipts" && (
           <>
-            <p>Parish payment receipts are issued after the parish office verifies payment.</p>
+            <p>Download a booking receipt while payment is pending. Parish payment receipts are issued after the parish office verifies payment.</p>
             {bookings.map((b) => {
               const receipts = b.documents.filter((d) => ["receipt", "payment_receipt"].includes(d.kind) && d.released);
-              return <article key={b.id} className="portal-card"><h2 className="portal-card-title">{b.reference} · {b.service}</h2>{receipts.map((d) => <p key={d.id}><FileDownload href={docHref(d.id)} previewHref={`${docHref(d.id)}?preview=1`}><i className="fas fa-download" aria-hidden="true" /> {d.kind === "payment_receipt" ? `Download parish payment receipt ${b.paymentReceipt?.receiptNumber ?? ""}`.trim() : "Download official receipt"}</FileDownload></p>)}{!receipts.length && <p>{b.paymentStatus === "paid" ? "No receipt has been released yet." : "A receipt is issued after the parish office verifies your payment."}</p>}</article>;
+              return <article key={b.id} className="portal-card"><h2 className="portal-card-title">{b.reference} · {b.service}</h2>{receipts.map((d) => <p key={d.id}><FileDownload href={docHref(d.id)} previewHref={`${docHref(d.id)}?preview=1`}><i className="fas fa-download" aria-hidden="true" /> {d.kind === "payment_receipt" ? `Download parish payment receipt ${b.paymentReceipt?.receiptNumber ?? ""}`.trim() : "Download official receipt"}</FileDownload></p>)}{!receipts.length && b.paymentStatus === "unpaid" && b.source === "web" && <p><FileDownload href={`/api/bookings/${encodeURIComponent(b.reference)}/receipt`} previewHref={`/api/bookings/${encodeURIComponent(b.reference)}/receipt?preview=1`}><i className="fas fa-download" aria-hidden="true" /> Download booking receipt (UNPAID)</FileDownload></p>}{!receipts.length && b.paymentStatus === "paid" && <p>No receipt has been released yet.</p>}</article>;
             })}
             {!bookings.length && <p className="portal-empty">No appointments yet, so there are no receipts.</p>}
             {pager}

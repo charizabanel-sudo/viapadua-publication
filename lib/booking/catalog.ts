@@ -55,9 +55,9 @@ const motherName: ServiceField = {
 };
 const fatherName: ServiceField = {
   name: "fatherName",
-  label: "Father's Full Name",
+  label: "Father's Full Name (Optional)",
   type: "text",
-  required: true,
+  required: false,
   placeholder: "First Name, Middle Name, Last Name",
 };
 

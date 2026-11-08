@@ -81,6 +81,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedBooking | null>(null);
+  const [certificateRecipientName, setCertificateRecipientName] = useState("");
   const [dirty, setDirty] = useState(false);
   const [formVersion, setFormVersion] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -278,6 +279,12 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
 
   function onBookingSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (hasServiceTypeChoice && !serviceType) {
+      const message = "Choose an ordinary or special appointment.";
+      setErrors((prev) => ({ ...prev, serviceType: message }));
+      setFormError(message);
+      return;
+    }
     if (!payment) {
       setErrors((prev) => ({
         ...prev,
@@ -381,6 +388,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
           <CertificateRequestForm
             key={certificateType}
             initialType={certificateType}
+            initialRecipientName={certificateRecipientName}
             visible={active === "services"}
             onDirtyChange={setDirty}
             signedIn={signedIn}
@@ -495,13 +503,29 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                             : openBooking(card.serviceCodes[0])
                         }
                       >
-                        Book Now
+                        Set Appointment
                       </button>
                       {card.certificate && (
                         <button
                           type="button"
                           className="btn btn-secondary"
-                          onClick={() => navigateServices({ service: card.slug, step: "certificate" })}
+                          onClick={() => {
+                            const bookingValues = bookingFormRef.current
+                              ? new FormData(bookingFormRef.current)
+                              : null;
+                            const recipientField =
+                              card.slug === "baptism"
+                                ? "childName"
+                                : card.slug === "confirmation"
+                                  ? "candidateName"
+                                  : null;
+                            setCertificateRecipientName(
+                              recipientField
+                                ? String(bookingValues?.get(recipientField) ?? "")
+                                : "",
+                            );
+                            navigateServices({ service: card.slug, step: "certificate" });
+                          }}
                         >
                           Request Certificate
                         </button>
@@ -626,7 +650,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                   <div className="service-type-section service-type-first">
                     <input type="hidden" name="serviceType" value={serviceType ?? ""} />
                     <span className="service-type-label">
-                      Choose {service.name} Type <span className="req">*</span>
+                      Request Type <span className="req">*</span>
                     </span>
                     <div className="service-type-options">
                       <button
@@ -636,6 +660,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                         onClick={() => {
                           setServiceType("ordinary");
                           setDirty(true);
+                          clearError("serviceType");
                         }}
                       >
                         Ordinary {service.name}
@@ -647,22 +672,51 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                         onClick={() => {
                           setServiceType("special");
                           setDirty(true);
+                          clearError("serviceType");
                         }}
                       >
-                        Special {service.name}
+                        <i className="fas fa-star" aria-hidden="true" /> Special {service.name}
                       </button>
                     </div>
+                    {errors.serviceType && (
+                      <div className="form-hint warn" role="alert">
+                        {errors.serviceType}
+                      </div>
+                    )}
                   </div>
                 )}
-                {(!hasServiceTypeChoice || serviceType !== null) && (
-                  <>
-                    {signedIn && account && (
-                      <>
-                        <input type="hidden" name="bookFullName" value={account.fullname} />
-                        <input type="hidden" name="bookEmail" value={account.email} />
-                        <input type="hidden" name="bookContact" value={account.phone ?? ""} />
-                      </>
+                {serviceType === "special" && (
+                  <div className="special-request-panel">
+                    <div className="special-request-heading">
+                      <i className="fas fa-star" aria-hidden="true" />
+                      <label htmlFor="f-specialRequest">
+                        Special Request <span className="req">*</span>
+                      </label>
+                    </div>
+                    <textarea
+                      id="f-specialRequest"
+                      name="specialRequest"
+                      required
+                      placeholder="Please specify your special request (e.g. different date, special occasion, etc.)..."
+                      aria-invalid={Boolean(errors.specialRequest)}
+                      onChange={() => clearError("specialRequest")}
+                    />
+                    <p className="special-request-fee-note">
+                      The parish will review your request and set any additional fee. Your receipt will show the updated total.
+                    </p>
+                    {errors.specialRequest && (
+                      <div className="form-hint warn" role="alert">{errors.specialRequest}</div>
                     )}
+                  </div>
+                )}
+                <>
+                {signedIn && account && (
+                  <>
+                    <input type="hidden" name="bookFullName" value={account.fullname} />
+                    <input type="hidden" name="bookEmail" value={account.email} />
+                    <input type="hidden" name="bookContact" value={account.phone ?? ""} />
+                  </>
+                )}
                     <div className="hp-field" aria-hidden="true">
                       <label htmlFor="website">Website</label>
                       <input
@@ -830,36 +884,6 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                       ),
                     )}
 
-                    {(serviceType === "special" || !hasServiceTypeChoice) && (
-                      <div className="form-group">
-                        <label htmlFor={hasServiceTypeChoice ? "f-specialRequest" : "f-bookNotes"}>
-                          {hasServiceTypeChoice ? "Special Request" : "Additional Notes"}
-                          {hasServiceTypeChoice && <span className="req"> *</span>}
-                        </label>
-                        <textarea
-                          id={hasServiceTypeChoice ? "f-specialRequest" : "f-bookNotes"}
-                          name={hasServiceTypeChoice ? "specialRequest" : "bookNotes"}
-                          maxLength={1000}
-                          required={hasServiceTypeChoice}
-                          placeholder={
-                            hasServiceTypeChoice
-                              ? "Describe the special details or requests for your program..."
-                              : "Any additional instructions or requests..."
-                          }
-                          aria-invalid={
-                            hasServiceTypeChoice
-                              ? Boolean(errors.specialRequest)
-                              : Boolean(errors.bookNotes)
-                          }
-                        />
-                        {(hasServiceTypeChoice ? errors.specialRequest : errors.bookNotes) && (
-                          <div className="form-hint warn">
-                            {hasServiceTypeChoice ? errors.specialRequest : errors.bookNotes}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
                     <div className="payment-section-title" id="paymentTitle">
                       <i className="fas fa-wallet" aria-hidden="true" /> Payment Method{" "}
                       <span className="req" style={{ color: "#ef4444" }}>*</span>
@@ -919,8 +943,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                             : "Confirm Appointment"}
                       </button>
                     </div>
-                  </>
-                )}
+                </>
               </form>
             </section>
           )}
@@ -951,8 +974,13 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                     "Use the masked details on the original QR; confirm with the parish office"}
                 </strong>
                 <br />
-                Amount to pay:{" "}
+                {serviceType === "special" ? "Base amount:" : "Amount to pay:"}{" "}
                 <span className="amount-highlight">{formatPeso(service.fee)}</span>
+                {serviceType === "special" && (
+                  <p className="special-request-fee-note">
+                    This is the base fee. The parish will assess any special-request fee and include it in the updated receipt.
+                  </p>
+                )}
               </div>
               <div className="notice-box">
                 <i className="fas fa-shield-alt" aria-hidden="true" /> Your appointment
@@ -1068,7 +1096,13 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                 <SummaryRow label="Service" value={created.service} />
                 <SummaryRow label="Date" value={formatDateLong(created.date)} />
                 <SummaryRow label="Time" value={formatTime12h(created.time)} />
-                <SummaryRow label="Fee" value={formatPeso(created.fee)} />
+                <SummaryRow label={serviceType === "special" ? "Base fee" : "Fee"} value={formatPeso(created.fee)} />
+                {serviceType === "special" && (
+                  <>
+                    <SummaryRow label="Special request fee" value="Pending parish assessment" />
+                    <SummaryRow label="Overall total" value="Pending parish assessment" />
+                  </>
+                )}
                 <SummaryRow
                   label="Payment"
                   value={
@@ -1091,6 +1125,12 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                   : "The parish office will verify your GCash reference before marking the appointment as paid."}
               </div>
               <div className="modal-actions">
+                <a
+                  className="btn btn-secondary"
+                  href={`/api/bookings/${encodeURIComponent(created.reference)}/receipt`}
+                >
+                  <i className="fas fa-download" aria-hidden="true" /> Download booking receipt (UNPAID)
+                </a>
                 <button type="button" className="btn btn-primary" onClick={close}>
                   Done
                 </button>

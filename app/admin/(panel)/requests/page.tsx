@@ -120,16 +120,52 @@ export default async function RequestsPage() {
                 <UploadDocument requestId={r.id} kind="certificate" />
               </>
             )}
-            {r.documents.map((file) => (
-              <p key={file.id}>
-                <FileDownload
-                  href={`/api/documents/${file.id}`}
-                  previewHref={`/api/documents/${file.id}?preview=1`}
-                >
-                  {file.kind}: {file.filename}
-                </FileDownload>
-              </p>
-            ))}
+            {r.documents.some((file) => file.kind === "payment_proof") && (
+              <section aria-label="Submitted payment evidence">
+                <h3>Submitted payment evidence</h3>
+                {r.documents
+                  .filter((file) => file.kind === "payment_proof")
+                  .map((file) => (
+                    <p key={file.id}>
+                      <FileDownload
+                        href={`/api/documents/${file.id}`}
+                        previewHref={`/api/documents/${file.id}?preview=1`}
+                      >
+                        Review payment proof: {file.filename}
+                      </FileDownload>
+                    </p>
+                  ))}
+              </section>
+            )}
+            {r.documents.some((file) => file.kind === "certificate") && (
+              <section aria-label="Certificate documents">
+                <h3>Certificate downloads</h3>
+                {r.documents
+                  .filter((file) => file.kind === "certificate")
+                  .map((file) => (
+                    <p key={file.id}>
+                      <FileDownload
+                        href={`/api/documents/${file.id}`}
+                        previewHref={`/api/documents/${file.id}?preview=1`}
+                      >
+                        Certificate: {file.filename}
+                      </FileDownload>
+                    </p>
+                  ))}
+              </section>
+            )}
+            {r.documents
+              .filter((file) => !["payment_proof", "certificate"].includes(file.kind))
+              .map((file) => (
+                <p key={file.id}>
+                  <FileDownload
+                    href={`/api/documents/${file.id}`}
+                    previewHref={`/api/documents/${file.id}?preview=1`}
+                  >
+                    {file.kind}: {file.filename}
+                  </FileDownload>
+                </p>
+              ))}
           </article>
         );
       })}

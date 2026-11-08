@@ -3,6 +3,7 @@ import { getCurrentAdmin } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
 import {
   findDocumentReference,
+  suggestCertificateRequests,
   suggestBookings,
   attachScan,
 } from "@/lib/documents/scans";
@@ -18,14 +19,17 @@ export async function GET(request: Request) {
     if (!(await getCurrentAdmin()))
       throw new MessagingError("unauthorized", "Sign in as staff.", 401);
     const p = new URL(request.url).searchParams;
+    const db = getDb();
+    const text = (p.get("text") ?? "").slice(0, 2000);
+    const query = p.get("q") ?? "";
+    const [bookings, certificateRequests] = await Promise.all([
+      suggestBookings(db, text, query),
+      suggestCertificateRequests(db, text, query),
+    ]);
     return messagingJson({
-      candidates: await suggestBookings(
-        getDb(),
-        (p.get("text") ?? "").slice(0, 2000),
-        p.get("q") ?? "",
-      ),
+      candidates: [...bookings, ...certificateRequests],
       resolved: p.get("reference")
-        ? await findDocumentReference(getDb(), p.get("reference")!)
+        ? await findDocumentReference(db, p.get("reference")!)
         : null,
     });
   } catch (e) {

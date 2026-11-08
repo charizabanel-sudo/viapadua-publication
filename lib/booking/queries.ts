@@ -28,6 +28,7 @@ const listSelect = {
   paymentMethod: true,
   paymentStatus: true,
   gcashReference: true,
+  details: true,
   source: true,
   createdAt: true,
   updatedAt: true,
@@ -35,7 +36,7 @@ const listSelect = {
 
 export type BookingListItem = Prisma.BookingGetPayload<{ select: typeof listSelect }>;
 
-/** Admin list: newest bookings and reschedule requests first. Heavy columns (receipts, JSON) are excluded. */
+/** Admin list: newest bookings and reschedule requests first. Receipt blobs are excluded; booking details flag special requests. */
 export async function listBookings(db: Db, filters: BookingFilters): Promise<{ items: BookingListItem[]; total: number; page: number; pages: number }> {
   const q = filters.q?.trim().slice(0, 100);
   const where: Prisma.BookingWhereInput = {

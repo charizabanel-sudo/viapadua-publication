@@ -54,7 +54,7 @@ describe("database: parish payment receipts", { skip }, () => {
     const issued = await issueReceipt(db, paid.receiptId, adminId);
     assert.equal(issued.status, "issued");
     const receipt = await db.paymentReceipt.findUniqueOrThrow({ where: { bookingId: id }, include: { document: true, booking: true } });
-    assert.match(receipt.receiptNumber, /^VPR-\d{4}-\d{6}$/);
+    assert.equal(receipt.receiptNumber, reference);
     assert.equal(receipt.document?.kind, RECEIPT_DOCUMENT_KIND);
     assert.equal(receipt.document?.released, true);
     assert.equal(receipt.document?.mime, "application/pdf");
@@ -63,9 +63,10 @@ describe("database: parish payment receipts", { skip }, () => {
     const manila = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(receipt.booking.paidAt!);
     assert.equal(s.paymentDate, manila);
     assert.equal(s.paymentMethod, "church");
+    assert.equal(s.paymentStatus, "paid");
     assert.equal(s.gcashReference, null);
     const text = await pdfText(receipt.document!.content);
-    for (const expected of ["PARISH PAYMENT RECEIPT", receipt.receiptNumber, reference, "Maria Dela Peña", "Mass Intention", "PHP 300.00", "Paid at the church", "Church of San Antonio de Padua Parish", "Ponso, Polangui, Albay", "not a government-registered official receipt"])
+    for (const expected of ["OFFICIAL RECEIPT", "PAID", receipt.receiptNumber, reference, "Maria Dela Peña", "Mass Intention", "Name of Person: Lola", "Type of Mass: Memorial", "PHP 300.00", "Pay at the church", "Church of San Antonio de Padua Parish", "Ponso, Polangui, Albay", "not a government-registered official receipt"])
       assert.ok(text.includes(expected), `PDF contains ${expected}: ${text}`);
     assert.doesNotMatch(text, /TIN|VAT|BIR/);
     assert.ok(await db.portalAudit.count({ where: { action: "payment_verified" } }));

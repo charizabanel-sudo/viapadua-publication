@@ -64,11 +64,11 @@ it("certificate requests validate type, record date and marriage/baptism identit
     purpose: "School record",
   };
   assert.ok(requestSchema.safeParse(data).success);
+  assert.ok(requestSchema.safeParse({ ...data, fatherName: "" }).success);
   for (const change of [
     { type: "unknown" },
     { sacramentDate: "2020-02-30" },
     { sacramentDate: "2099-01-01" },
-    { fatherName: "" },
     { type: "wedding", spouseName: "" },
   ])
     assert.equal(

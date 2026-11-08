@@ -441,6 +441,16 @@ try {
   const released = (await api(guest, "/api/certificate-requests")).requests[0];
   assert.equal(released.status, "released");
   assert.ok(released.documents.length);
+  const certificateDocuments = (await pool.query(
+    "SELECT id,kind,released FROM private_documents WHERE request_id=$1 ORDER BY kind",
+    [guestRequest.id],
+  )).rows;
+  assert.ok(certificateDocuments.some((document) => document.kind === "payment_proof" && !document.released));
+  assert.ok(certificateDocuments.some((document) => document.kind === "certificate" && document.released));
+  assert.deepEqual(
+    released.documents.map((document) => document.id),
+    certificateDocuments.filter((document) => document.kind === "certificate" && document.released).map((document) => document.id),
+  );
   const downloadUrl = "/api/documents/" + released.documents[0].id;
   const delivered = await guest.request.get(base + downloadUrl);
   assert.equal(delivered.status(), 200);

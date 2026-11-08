@@ -4,7 +4,7 @@ import { EVENT_TYPE_LABEL } from "@/lib/admin/events";
 import { formatDateLong, formatTime12h, hasClockTime, parseIsoDate } from "@/lib/booking/schedule";
 import { requireAdmin } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
-import type { AdminEventType } from "@/lib/generated/prisma/enums";
+import type { AdminEventType, BookingStatus } from "@/lib/generated/prisma/enums";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -28,7 +28,33 @@ function DateChip({ iso }: { iso: string }) {
 export default async function DashboardPage() {
   const admin = await requireAdmin();
   const now = new Date();
-  const data = await getDashboardData(getDb(), now);
+  const db = getDb();
+  const userCancellableStatuses: BookingStatus[] = ["pending", "confirmed"];
+  const cancellationWhere = {
+    toStatus: "cancelled" as const,
+    fromStatus: { in: userCancellableStatuses },
+    adminId: null,
+    createdAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+  };
+  const [data, cancellationCount, cancellationEvents] = await Promise.all([
+    getDashboardData(db, now),
+    db.bookingStatusEvent.count({ where: cancellationWhere }),
+    db.bookingStatusEvent.findMany({
+      where: cancellationWhere,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 8,
+      select: { id: true, bookingId: true, createdAt: true },
+    }),
+  ]);
+  const cancellationBookings = await db.booking.findMany({
+    where: { id: { in: cancellationEvents.map((event) => event.bookingId) } },
+    select: { id: true, reference: true, requesterName: true, service: true, bookingDate: true, bookingTime: true },
+  });
+  const bookingsById = new Map(cancellationBookings.map((booking) => [booking.id, booking]));
+  const cancellations = cancellationEvents.flatMap((event) => {
+    const booking = bookingsById.get(event.bookingId);
+    return booking ? [{ ...event, booking }] : [];
+  });
   const maxService = Math.max(1, ...data.byService.map((s) => s.count));
   const maxMonth = Math.max(1, ...data.monthly.map((m) => m.count));
 
@@ -131,7 +157,7 @@ export default async function DashboardPage() {
                           </span>
                         </td>
                         <td>
-                          <Link className="btn btn-blue btn-sm" href={`/admin/bookings?view=${p.id}`}>
+                          <Link className="btn btn-blue btn-sm dashboard-review-button" href={`/admin/bookings?view=${p.id}`}>
                             Review
                           </Link>
                         </td>
@@ -142,6 +168,42 @@ export default async function DashboardPage() {
               </div>
             )}
           </section>
+
+          {cancellationCount > 0 && (
+            <section className="card cancellation-notifications" aria-labelledby="cancellationsTitle">
+              <div className="card-head">
+                <div>
+                  <h2 id="cancellationsTitle">User cancellation notifications</h2>
+                  <div className="sub">Appointments cancelled in the last 24 hours</div>
+                </div>
+                <Link className="card-link" href="/admin/bookings?status=cancelled">
+                  View cancelled appointments →
+                </Link>
+              </div>
+              <ul className="list">
+                {cancellations.map((event) => (
+                  <li className="list-row" key={event.id}>
+                    <span className="badge badge-cancelled">Cancelled</span>
+                    <div className="grow">
+                      <strong>{event.booking.reference} · {event.booking.service}</strong>
+                      <span className="meta">
+                        {event.booking.requesterName} · Appointment {event.booking.bookingDate.toLocaleDateString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium" })}
+                        {event.booking.bookingTime ? ` at ${formatTime12h(event.booking.bookingTime)}` : ""}
+                        {" · Cancelled "}
+                        {event.createdAt.toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" })}
+                      </span>
+                    </div>
+                    <Link className="btn btn-blue btn-sm dashboard-review-button" href={`/admin/bookings?view=${event.booking.id}`}>
+                      Review
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              {cancellationCount > cancellations.length && (
+                <p className="muted-text">Showing the latest {cancellations.length} of {cancellationCount} cancellations.</p>
+              )}
+            </section>
+          )}
 
           <section className="card" aria-labelledby="activityTitle">
             <div className="card-head">
@@ -224,6 +286,7 @@ export default async function DashboardPage() {
           )}
         </section>
       </div>
+
     </>
   );
 }

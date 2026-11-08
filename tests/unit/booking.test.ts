@@ -75,13 +75,16 @@ describe("booking validation", () => {
     assert.equal(result.ok, false);
   });
 
-  it("requires service-specific fields", () => {
+  it("requires child details while allowing the father's name to be blank", () => {
     const result = validateBookingInput(baptism({ childName: "", fatherName: "  " }), NOW);
     assert.equal(result.ok, false);
     if (!result.ok) {
       assert.ok(result.fieldErrors.childName);
-      assert.ok(result.fieldErrors.fatherName);
+      assert.equal(result.fieldErrors.fatherName, undefined);
     }
+    const valid = validateBookingInput(baptism({ fatherName: "" }), NOW);
+    assert.ok(valid.ok);
+    if (valid.ok) assert.equal(valid.data.details.fatherName, undefined);
   });
 
   it("stores service type and special requests for special baptism appointments", () => {
@@ -97,6 +100,22 @@ describe("booking validation", () => {
       assert.equal(result.data.details.serviceType, "Special");
       assert.equal(result.data.details.specialRequest, "Please include a choir for the program.");
     }
+  });
+
+  it("accepts special requests longer than 200 characters up to the configured maximum", () => {
+    const request = "x".repeat(300);
+    const result = validateBookingInput(
+      baptism({ serviceType: "special", specialRequest: request }),
+      NOW,
+    );
+    assert.ok(result.ok);
+    if (result.ok) assert.equal(result.data.details.specialRequest.length, 300);
+
+    const tooLong = validateBookingInput(
+      baptism({ serviceType: "special", specialRequest: "x".repeat(5001) }),
+      NOW,
+    );
+    assert.equal(tooLong.ok, false);
   });
 
   it("rejects blocked weekdays, past dates, out-of-hours times and future birth dates", () => {

@@ -4,7 +4,7 @@ import { getCurrentUser, guestAccess } from "@/lib/server/user-auth";
 import { validateFile } from "@/lib/documents/files";
 import { bucketKey, countEvents, recordEvents } from "@/lib/auth/rate-limit";
 import { BookingRuleError, createBookingRecord, findBookingReplay, type CreatedBooking } from "@/lib/booking/create";
-import { validateBookingInput, type FieldErrors } from "@/lib/booking/validation";
+import { MAX_SPECIAL_REQUEST_LENGTH, validateBookingInput, type FieldErrors } from "@/lib/booking/validation";
 import { getDb } from "@/lib/server/db";
 import { ConfigError, getAuthSecret } from "@/lib/server/env";
 import { getClientIp } from "@/lib/server/request";
@@ -20,7 +20,7 @@ const HOUR_MS = 60 * 60 * 1000;
 export async function submitBookingForm(formData: FormData): Promise<BookingResult> {
   const raw: Record<string, string> = {};
   for (const [key, value] of formData.entries()) {
-    if (typeof value === "string") raw[key] = value.slice(0, 2000);
+    if (typeof value === "string") raw[key] = value.slice(0, key === "specialRequest" ? MAX_SPECIAL_REQUEST_LENGTH : 2000);
   }
 
   // Honeypot field: real visitors never fill it.

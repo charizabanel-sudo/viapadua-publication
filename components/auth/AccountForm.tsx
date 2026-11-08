@@ -19,6 +19,7 @@ export default function AccountForm({
     {},
   );
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const ids = {
     name: `${idPrefix}name`,
     email: `${idPrefix}email`,
@@ -164,14 +165,21 @@ export default function AccountForm({
       <small id={ids.hint}>{PASSWORD_HINT}</small>
       <label htmlFor={ids.confirm}>
         Confirm password
-        <input
-          id={ids.confirm}
-          name="confirm"
-          type={showPassword ? "text" : "password"}
-          autoComplete="new-password"
-          required
-          {...invalid("confirm")}
-        />
+        <span className="password-wrap">
+          <input
+            id={ids.confirm}
+            name="confirm"
+            type={showConfirmPassword ? "text" : "password"}
+            autoComplete="new-password"
+            required
+            {...invalid("confirm")}
+          />
+          <PasswordToggle
+            inputId={ids.confirm}
+            visible={showConfirmPassword}
+            onToggle={() => setShowConfirmPassword((v) => !v)}
+          />
+        </span>
       </label>
       <input
         name="website"

@@ -20,6 +20,7 @@ export type FieldErrors = Record<string, string>;
 export type ValidationResult = { ok: true; data: ValidBooking } | { ok: false; formError?: string; fieldErrors: FieldErrors };
 
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+export const MAX_SPECIAL_REQUEST_LENGTH = 5000;
 
 /** Normalizes PH mobile numbers to 09XXXXXXXXX; accepts other international numbers as +digits. */
 export function normalizePhone(value: string): string | null {
@@ -80,7 +81,7 @@ const baseSchema = z.object({
   bookDate: z.string().trim().min(1, "Preferred date is required."),
   bookTime: z.string().trim().min(1, "Preferred time is required."),
   bookNotes: cleanText(1000, "Notes").optional().default(""),
-  specialRequest: cleanText(1000, "Special request").optional().default(""),
+  specialRequest: cleanText(MAX_SPECIAL_REQUEST_LENGTH, "Special request").optional().default(""),
   payment_method: z.enum(["gcash", "church"], { error: "Please choose a payment method." }),
 });
 

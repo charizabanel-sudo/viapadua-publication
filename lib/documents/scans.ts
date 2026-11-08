@@ -2,38 +2,63 @@ import { z } from "zod";
 import type { Db } from "@/lib/db/client";
 import { EXCLUDE_SAMPLES } from "@/lib/booking/samples";
 export async function findDocumentReference(db: Db, reference: string) {
-  if (!z.uuid().safeParse(reference).success) return null;
-  const [document, booking, request] = await Promise.all([
-    db.privateDocument.findUnique({
-      where: { reference },
-      select: { id: true, bookingId: true, requestId: true },
-    }),
-    db.booking.findUnique({
-      where: { documentReference: reference },
-      select: {
-        id: true,
-        reference: true,
-        requesterName: true,
-        bookingDate: true,
-        userId: true,
-      },
-    }),
-    db.certificateRequest.findUnique({
-      where: { id: reference },
-      select: { id: true, reference: true, requesterName: true, userId: true },
-    }),
-  ]);
+  const isUuid = z.uuid().safeParse(reference).success;
+  const [document, bookingByDocumentReference, bookingByReference, requestById, requestByReference] =
+    await Promise.all([
+      isUuid
+        ? db.privateDocument.findUnique({
+            where: { reference },
+            select: { id: true, bookingId: true, requestId: true },
+          })
+        : null,
+      isUuid
+        ? db.booking.findUnique({
+            where: { documentReference: reference },
+            select: {
+              id: true,
+              reference: true,
+              requesterName: true,
+              bookingDate: true,
+              userId: true,
+            },
+          })
+        : null,
+      db.booking.findUnique({
+        where: { reference },
+        select: {
+          id: true,
+          reference: true,
+          requesterName: true,
+          bookingDate: true,
+          userId: true,
+        },
+      }),
+      isUuid
+        ? db.certificateRequest.findUnique({
+            where: { id: reference },
+            select: { id: true, reference: true, requesterName: true, userId: true },
+          })
+        : null,
+      db.certificateRequest.findUnique({
+        where: { reference },
+        select: { id: true, reference: true, requesterName: true, userId: true },
+      }),
+    ]);
   return document
     ? { kind: "document", ...document }
-    : booking
-      ? { kind: "booking", ...booking }
-      : request
-        ? { kind: "request", ...request }
-        : null;
+    : bookingByDocumentReference
+      ? { kind: "booking", ...bookingByDocumentReference }
+      : bookingByReference
+        ? { kind: "booking", ...bookingByReference }
+        : requestById
+          ? { kind: "request", ...requestById }
+          : requestByReference
+            ? { kind: "request", ...requestByReference }
+            : null;
 }
 export async function suggestBookings(db: Db, text: string, query = "") {
   const references = [
-    ...new Set(text.match(/VP-[A-Z0-9]{4}-[A-Z0-9]{4}|LEGACY-\d+/gi) ?? []),
+    ...new Set(text.match(/VP-[A-Z0-9]{4}-[A-Z0-9]{4}|VP-L\d{6,}|LEGACY-\d+/gi) ?? []),
   ].slice(0, 20);
   const dates = [...new Set(text.match(/\b20\d{2}-\d{2}-\d{2}\b/g) ?? [])]
     .filter((d) => !Number.isNaN(Date.parse(d)))
@@ -77,6 +102,7 @@ export async function suggestBookings(db: Db, text: string, query = "") {
     orderBy: { createdAt: "desc" },
   });
   return rows.map((b) => ({
+    kind: "booking" as const,
     ...b,
     evidence: references.some(
       (r) => r.toLowerCase() === b.reference.toLowerCase(),
@@ -87,6 +113,58 @@ export async function suggestBookings(db: Db, text: string, query = "") {
         : "Name/reference matches the staff search; ownership unverified",
   }));
 }
+
+export async function suggestCertificateRequests(db: Db, text: string, query = "") {
+  const references = [
+    ...new Set(text.match(/VP-[A-Z0-9]{4}-[A-Z0-9]{4}|VP-L\d{6,}/gi) ?? []),
+  ].slice(0, 20);
+  const q = query.trim().slice(0, 100);
+  if (!references.length && q.length < 3) return [];
+  const rows = await db.certificateRequest.findMany({
+    where: {
+      OR: [
+        ...(references.length
+          ? [{ reference: { in: references, mode: "insensitive" as const } }]
+          : []),
+        ...(q.length >= 3
+          ? [
+              { requesterName: { contains: q, mode: "insensitive" as const } },
+              {
+                details: {
+                  path: ["recipientName"],
+                  string_contains: q,
+                  mode: "insensitive" as const,
+                },
+              },
+            ]
+          : []),
+      ],
+    },
+    select: {
+      id: true,
+      reference: true,
+      requesterName: true,
+      type: true,
+      createdAt: true,
+    },
+    take: 20,
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map((request) => ({
+    kind: "request" as const,
+    id: request.id,
+    reference: request.reference,
+    requesterName: request.requesterName,
+    bookingDate: request.createdAt,
+    service: `${request.type} certificate`,
+    evidence: references.some(
+      (reference) => reference.toLowerCase() === request.reference.toLowerCase(),
+    )
+      ? "Certificate request reference found in extracted text"
+      : "Requester or recipient name matches the staff search; verify against the document",
+  }));
+}
+
 export async function attachScan(
   db: Db,
   input: {

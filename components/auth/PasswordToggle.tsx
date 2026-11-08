@@ -26,7 +26,7 @@ export default function PasswordToggle({ inputId, visible, onToggle, className =
           });
       }}
     >
-      <i className={`fas ${visible ? "fa-eye-slash" : "fa-eye"}`} aria-hidden="true" />
+      <i className={`fas ${visible ? "fa-eye" : "fa-eye-slash"}`} aria-hidden="true" />
     </button>
   );
 }

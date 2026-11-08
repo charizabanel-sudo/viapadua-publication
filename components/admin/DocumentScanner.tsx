@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { downloadBlob } from "@/lib/certificates/pdf";
 import FileActions from "@/components/files/FileActions";
 type Candidate = {
-  id: number;
+  kind: "booking" | "request";
+  id: number | string;
   reference: string;
   requesterName: string;
-  bookingDate: string;
+  bookingDate: string | Date;
   service: string;
   evidence: string;
 };
@@ -19,6 +20,37 @@ type Resolution = {
   bookingId?: number;
   requestId?: string;
 };
+
+function extractBookingReference(text: string): string | null {
+  const compact = text.toUpperCase().replace(/\s+/g, "");
+  const match = compact.match(/\bVP-?([0-9A-Z]{4})-?([0-9A-Z]{4})\b|\bVP-?L(\d{6,})\b/);
+  if (!match) return null;
+  return match[3] ? `VP-L${match[3]}` : `VP-${match[1]}-${match[2]}`;
+}
+
+function extractDocumentName(text: string): string | null {
+  const lines = text.split(/\r?\n/);
+  const patterns = [
+    /received from\s*:?\s*(.+)/i,
+    /this is to certify(?: that)?\s+(.+)/i,
+    /(?:recipient|requester)(?:'s)? name\s*:?\s*(.+)/i,
+    /\bname\s*:\s*(.+)/i,
+  ];
+  for (const line of lines) {
+    for (const pattern of patterns) {
+      const match = line.match(pattern);
+      if (!match) continue;
+      const name = match[1]
+        .replace(/\s+(?:who was|was|is|for|on)\b.*$/i, "")
+        .replace(/[^a-zA-Z .'-]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 100);
+      if (name.length >= 3) return name;
+    }
+  }
+  return null;
+}
 export default function DocumentScanner({
   initialReference = "",
   initialDocumentId = "",
@@ -137,8 +169,13 @@ export default function DocumentScanner({
     canvas.toBlob(
       (blob) => {
         if (blob && mounted.current) {
-          setFile(new File([blob], "paper-scan.jpg", { type: "image/jpeg" }));
+          const captured = new File([blob], "paper-scan.jpg", { type: "image/jpeg" });
+          setFile(captured);
           setDocumentId("");
+          setText("");
+          setCandidates([]);
+          setResolved(null);
+          void extract(captured);
         }
       },
       "image/jpeg",
@@ -184,15 +221,33 @@ export default function DocumentScanner({
       setBusy(false);
     }
   }
-  async function extract() {
-    if (!file || busyRef.current) return;
+  async function findMatches(
+    scanText = text,
+    scanReference = reference,
+    searchQuery = query,
+  ) {
+    const params = new URLSearchParams({
+      q: searchQuery,
+      text: scanText.slice(0, 2000),
+      reference: scanReference,
+    });
+    const response = await fetch("/api/admin/scans?" + params, { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) throw Error(data.error);
+    setCandidates(data.candidates);
+    setResolved(data.resolved);
+    return data as { candidates: Candidate[]; resolved: Resolution | null };
+  }
+  async function extract(targetFile: File | null = file) {
+    if (!targetFile || busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
+    setMessage("");
     try {
-      if (file.type === "application/pdf") {
+      if (targetFile.type === "application/pdf") {
         const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-        const task = pdfjs.getDocument({ data: await file.arrayBuffer() });
+        const task = pdfjs.getDocument({ data: await targetFile.arrayBuffer() });
         const doc = await task.promise;
         try {
           let result = "";
@@ -203,12 +258,29 @@ export default function DocumentScanner({
               content.items.map((i) => ("str" in i ? i.str : "")).join(" ") +
               "\n";
           }
-          setText(result.slice(0, 12000));
-          setMessage(
-            result.trim()
-              ? "Text extracted locally. Check it against the original; it does not establish ownership."
-              : "This PDF has no readable text layer. Enter a reference/name/date manually; leave uncertain scans unassigned.",
-          );
+          const extracted = result.slice(0, 12000);
+          setText(extracted);
+          if (extracted.trim()) {
+            const foundReference = extractBookingReference(extracted) ?? reference;
+            const foundName = extractDocumentName(extracted);
+            const searchName = foundName ?? query;
+            if (foundReference) setReference(foundReference);
+            if (foundName) setQuery(foundName);
+            try {
+              const matches = await findMatches(extracted, foundReference, searchName);
+              setMessage(
+                matches.resolved || matches.candidates.length
+                  ? "PDF text extracted. Possible matches found; verify the document before attaching."
+                  : "PDF text extracted, but no matching record was found. Check the text or search by name.",
+              );
+            } catch (error) {
+              setMessage(error instanceof Error ? error.message : "Could not search records.");
+            }
+          } else {
+            setMessage(
+              "This PDF has no readable text layer. Import a clear photo of the document for OCR, or search by name/reference.",
+            );
+          }
         } finally {
           await task.destroy();
         }
@@ -221,38 +293,68 @@ export default function DocumentScanner({
             BarcodeDetector?: new (opts: { formats: string[] }) => Detector;
           }
         ).BarcodeDetector;
-        if (!Constructor) {
-          setMessage(
-            "QR detection is unsupported in this browser. Enter the opaque reference or search the paper's reference/name/date. Photo OCR is not configured.",
-          );
-          return;
-        }
-        const bitmap = await createImageBitmap(file);
+        const bitmap = await createImageBitmap(targetFile);
+        let qrReference = "";
         try {
-          const codes = await new Constructor({ formats: ["qr_code"] }).detect(
-            bitmap,
-          );
-          const value = codes[0]?.rawValue;
-          if (value) {
-            try {
-              setReference(
-                new URL(value).searchParams.get("reference") ?? value,
-              );
-            } catch {
-              setReference(value);
+          if (Constructor) {
+            const codes = await new Constructor({ formats: ["qr_code"] }).detect(bitmap);
+            const value = codes[0]?.rawValue;
+            if (value) {
+              try {
+                qrReference = new URL(value).searchParams.get("reference") ?? value;
+              } catch {
+                qrReference = value;
+              }
             }
-            setMessage("QR read. Resolve it with the server before attaching.");
-          } else
-            setMessage(
-              "No QR detected. Enter the reference or search by name/date below.",
-            );
+          }
         } finally {
           bitmap.close();
         }
+        setMessage("Preparing photo OCR…");
+        const { createWorker } = await import("tesseract.js");
+        const worker = await createWorker("eng", 1, {
+          logger: ({ status, progress }) => {
+            if (!mounted.current) return;
+            const percent = Math.round(progress * 100);
+            setMessage(
+              status === "recognizing text"
+                ? `Reading document text… ${percent}%`
+                : `Preparing OCR… ${status}`,
+            );
+          },
+        });
+        let extracted = "";
+        try {
+          const result = await worker.recognize(targetFile, { rotateAuto: true });
+          extracted = result.data.text.trim().slice(0, 12000);
+        } finally {
+          await worker.terminate();
+        }
+        setText(extracted);
+        const foundReference =
+          qrReference || extractBookingReference(extracted) || reference;
+        const foundName = extractDocumentName(extracted);
+        const searchName = foundName ?? query;
+        if (foundReference) setReference(foundReference);
+        if (foundName) setQuery(foundName);
+        try {
+          const matches = await findMatches(extracted, foundReference, searchName);
+          setMessage(
+            matches.resolved || matches.candidates.length
+              ? "Photo read locally. Possible matching records are shown below; verify the document before attaching."
+              : extracted
+                ? "Photo read locally, but no matching record was found. Check the text or search by name."
+                : "No readable text found. Try a brighter, sharper photo with the full document in frame.",
+          );
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : "Could not search records.");
+        }
       }
-    } catch {
+    } catch (error) {
       setMessage(
-        "Text/QR extraction could not read this file. Use manual search; uncertain scans remain unassigned.",
+        error instanceof Error
+          ? `Could not read the document: ${error.message}`
+          : "Could not read the document. Use manual search; uncertain scans remain unassigned.",
       );
     } finally {
       busyRef.current = false;
@@ -286,16 +388,7 @@ export default function DocumentScanner({
   async function search() {
     setBusy(true);
     try {
-      const p = new URLSearchParams({
-        q: query,
-        text: text.slice(0, 2000),
-        reference,
-      });
-      const r = await fetch("/api/admin/scans?" + p, { cache: "no-store" }),
-        data = await r.json();
-      if (!r.ok) throw Error(data.error);
-      setCandidates(data.candidates);
-      setResolved(data.resolved);
+      const data = await findMatches();
       setMessage(
         data.candidates.length || data.resolved
           ? "Possible matches only. Verify the source before attachment."
@@ -340,8 +433,8 @@ export default function DocumentScanner({
   return (
     <div className="portal-form">
       <p>
-        The camera captures an image. Use “Create PDF” separately, or import an
-        existing PDF. Files stay private.
+        Photo text is read locally in your browser. The image is uploaded only
+        when you save the scan; OCR matches are suggestions and require review.
       </p>
       <div className="scan-actions">
         <button
@@ -383,11 +476,16 @@ export default function DocumentScanner({
         <input
           type="file"
           accept="image/jpeg,image/png,application/pdf"
+          disabled={busy}
           onChange={(e) => {
             stop();
-            setFile(e.target.files?.[0] ?? null);
+            const selected = e.target.files?.[0] ?? null;
+            setFile(selected);
             setDocumentId("");
             setText("");
+            setCandidates([]);
+            setResolved(null);
+            if (selected?.type.startsWith("image/")) void extract(selected);
           }}
         />
       </label>
@@ -415,9 +513,13 @@ export default function DocumentScanner({
           <div className="scan-actions">
             <button
               className="btn btn-secondary"
+              disabled={busy}
               onClick={() => {
                 setFile(null);
                 setDocumentId("");
+                setText("");
+                setCandidates([]);
+                setResolved(null);
                 stop();
               }}
             >
@@ -437,10 +539,10 @@ export default function DocumentScanner({
             )}
             <button
               className="btn btn-secondary"
-              onClick={extract}
+              onClick={() => void extract()}
               disabled={busy}
             >
-              Read PDF text / QR locally
+              {file.type === "application/pdf" ? "Read PDF text" : "Read photo (OCR + QR)"}
             </button>
             <button
               className="btn btn-primary"
@@ -470,7 +572,7 @@ export default function DocumentScanner({
         />
       </label>
       <label>
-        Search a booking reference or name
+        Search a booking or certificate reference/name
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -521,20 +623,26 @@ export default function DocumentScanner({
         </article>
       )}
       {candidates.map((c) => (
-        <article className="portal-card" key={c.id}>
+        <article className="portal-card" key={`${c.kind}-${c.id}`}>
           <h3>
             {c.reference} · {c.requesterName}
           </h3>
           <p>
-            {c.bookingDate.slice(0, 10)} · {c.service}
+            {new Date(c.bookingDate).toLocaleDateString("en-PH", { timeZone: "Asia/Manila" })} · {c.service}
           </p>
           <p>{c.evidence}</p>
           <button
             disabled={busy}
             className="btn btn-primary"
-            onClick={() => attach({ bookingId: c.id })}
+            onClick={() =>
+              c.kind === "booking"
+                ? attach({ bookingId: Number(c.id) })
+                : attach({ requestId: String(c.id) })
+            }
           >
-            Confirm attachment to this booking
+            {c.kind === "booking"
+              ? "Confirm attachment to this booking"
+              : "Confirm attachment to this certificate request"}
           </button>
         </article>
       ))}

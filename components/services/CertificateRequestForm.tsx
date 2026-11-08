@@ -14,6 +14,7 @@ type Progress = {
 };
 export default function CertificateRequestForm({
   initialType,
+  initialRecipientName = "",
   onBack,
   visible,
   onDirtyChange,
@@ -21,6 +22,7 @@ export default function CertificateRequestForm({
   account,
 }: {
   initialType: string;
+  initialRecipientName?: string;
   onBack: () => void;
   visible: boolean;
   onDirtyChange: (dirty: boolean) => void;
@@ -110,7 +112,7 @@ export default function CertificateRequestForm({
   }
   return (
     <section className="portal-form services-step">
-      <button type="button" className="btn btn-secondary" onClick={onBack}>
+      <button type="button" className="btn btn-secondary services-back-button" onClick={onBack}>
         Back to services
       </button>
       <h3 ref={headingRef} tabIndex={-1} data-dialog-autofocus>Request a Certificate</h3>
@@ -139,13 +141,18 @@ export default function CertificateRequestForm({
             ["email", "Your email"],
             ["phone", "Contact number"],
           ] : []),
-          ["recipientName", "Name on the parish record"],
+          [
+            "recipientName",
+            type === "baptism" || type === "confirmation"
+              ? "Child's Full Name"
+              : "Name on the parish record",
+          ],
           ...(type === "wedding"
             ? [["spouseName", "Spouse's full name"]]
             : []),
           ...(type === "baptism"
             ? [
-                ["fatherName", "Father's full name"],
+                ["fatherName", "Father's full name (optional)"],
                 ["motherName", "Mother's maiden name"],
               ]
             : []),
@@ -167,7 +174,7 @@ export default function CertificateRequestForm({
               required={name !== "fatherName"}
               maxLength={name === "email" ? 255 : 100}
               defaultValue={
-                name === "parish" ? "San Antonio de Padua Parish" : undefined
+                name === "recipientName" ? initialRecipientName : undefined
               }
             />
           </label>

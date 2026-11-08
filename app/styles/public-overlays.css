@@ -70,14 +70,19 @@
     background: #fffaf0;
     border: 2px solid #d6a84b;
     border-radius: 20px;
-    /* overflow-x hidden keeps the rounded corners clipped while overflow-y
-       still scrolls long booking forms (overflow: hidden would block scrolling). */
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
     touch-action: pan-y;
     scrollbar-gutter: stable;
     box-shadow: 0 24px 64px rgb(0 0 0 / 28%);
+}
+
+.public-dialog.services-workspace .services-workspace-body {
+    flex: 0 0 auto;
+    height: auto;
+    overflow: visible;
 }
 
 /* Keep the parishioner portal header and sidebar available while services is open. */

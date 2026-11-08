@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { detailLabel, formatPeso } from "@/lib/booking/catalog";
+import { detailLabel, formatPeso, getBookableService } from "@/lib/booking/catalog";
 import { isSampleReference } from "@/lib/booking/samples";
 import { getBookingDetail, isBookingStatus, listBookings, type BookingDetail, type BookingListItem } from "@/lib/booking/queries";
 import { formatDateLong, formatTime12h, hasClockTime, toIsoDate } from "@/lib/booking/schedule";
@@ -9,7 +9,7 @@ import { getDb } from "@/lib/server/db";
 import StatusButton from "../StatusButton";
 import BookingDetailsDialog from "@/components/admin/BookingDetailsDialog";
 import PrintButton from "@/components/admin/PrintButton";
-import { reviewBookingRescheduleAction } from "../actions";
+import { reviewBookingRescheduleAction, updateSpecialBookingFeeAction } from "../actions";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -61,6 +61,7 @@ function noticeMessage(notice: string): { kind: "success" | "error"; text: strin
   if (kind === "invalid") return { kind: "error", text: "Invalid request." };
   if (kind === "rescheduled") return { kind: "success", text: `Reschedule for appointment ${ref} was approved.` };
   if (kind === "reschedule_rejected") return { kind: "success", text: `Reschedule for appointment ${ref} was rejected.` };
+  if (kind === "special_fee_updated") return { kind: "success", text: `Special-request fee for appointment ${ref} was updated.` };
   return null;
 }
 
@@ -229,6 +230,7 @@ function paymentText(b: Pick<BookingListItem, "paymentMethod" | "gcashReference"
 
 function BookingCard({ booking: b, viewHref, returnTo }: { booking: BookingListItem; viewHref: string; returnTo: string }) {
   const date = toIsoDate(b.bookingDate);
+  const special = isSpecialBooking(b.details);
   return (
     <article className="payment-card">
       <div className="payment-main">
@@ -242,6 +244,7 @@ function BookingCard({ booking: b, viewHref, returnTo }: { booking: BookingListI
           <div>
             <h3 className="payment-title">
               {b.service}
+              {special && <span className="special-booking-badge"><i className="fas fa-star" aria-hidden="true" /> Special</span>}
               {b.status === "pending" && <span className="new-badge">NEW</span>}
               {b.requestedDate && <span className="new-badge">RESCHEDULE</span>}
               {b.source === "legacy" && <span className="pill legacy">Legacy</span>}
@@ -353,12 +356,31 @@ function Detail({ label, value, wide }: { label: string; value: string; wide?: b
 function detailEntries(details: unknown): [string, string][] {
   if (!details || typeof details !== "object" || Array.isArray(details)) return [];
   return Object.entries(details as Record<string, unknown>)
-    .filter(([key, value]) => !HIDDEN_DETAIL_KEYS.has(key) && value !== null && value !== "")
+    .filter(([key, value]) => !HIDDEN_DETAIL_KEYS.has(key) && key !== "specialFee" && value !== null && value !== "")
     .map(([key, value]) => [detailLabel(key), typeof value === "string" ? value : JSON.stringify(value).slice(0, 500)]);
+}
+
+function detailsObject(details: unknown): Record<string, unknown> {
+  return details && typeof details === "object" && !Array.isArray(details) ? details as Record<string, unknown> : {};
+}
+
+function isSpecialBooking(details: unknown): boolean {
+  const values = detailsObject(details);
+  return values.serviceType === "Special" && typeof values.specialRequest === "string";
+}
+
+function quotedSpecialFee(details: unknown): number | null {
+  const value = detailsObject(details).specialFee;
+  return typeof value === "string" && /^\d+(?:\.\d{1,2})?$/.test(value) ? Number(value) : null;
 }
 
 function DetailsModal({ booking: b, closeHref, returnTo }: { booking: BookingDetail; closeHref: string; returnTo: string }) {
   const entries = detailEntries(b.details);
+  const details = detailsObject(b.details);
+  const special = isSpecialBooking(b.details);
+  const extraFee = quotedSpecialFee(b.details);
+  const service = typeof details.serviceCode === "string" ? getBookableService(details.serviceCode) : null;
+  const baseFee = special && service ? service.fee : Number(b.fee ?? 0);
   const receipt = b.paymentProof && SAFE_RECEIPT.test(b.paymentProof) ? b.paymentProof : null;
 
   return (
@@ -380,7 +402,13 @@ function DetailsModal({ booking: b, closeHref, returnTo }: { booking: BookingDet
           <Detail label="Date" value={formatDateLong(toIsoDate(b.bookingDate))} />
           <Detail label="Time" value={formatTime12h(b.bookingTime)} />
           <Detail label="Location" value={b.location ?? ""} />
-          <Detail label="Fee" value={b.fee !== null ? formatPeso(Number(b.fee)) : ""} />
+          {special ? (
+            <>
+              <Detail label="Base fee" value={formatPeso(baseFee)} />
+              <Detail label="Special request fee" value={extraFee === null ? "Pending parish assessment" : formatPeso(extraFee)} />
+              <Detail label="Overall total" value={extraFee === null ? "Pending parish assessment" : formatPeso(Number(b.fee ?? 0))} />
+            </>
+          ) : <Detail label="Fee" value={b.fee !== null ? formatPeso(Number(b.fee)) : ""} />}
           <Detail label="Payment" value={b.paymentMethod === "gcash" ? "GCash" : b.paymentMethod === "church" ? "Pay at Church" : ""} />
           <Detail label="Payment Status" value={b.paymentStatus === "paid" ? "Paid" : "Unpaid"} />
           {b.paymentMethod === "gcash" && (
@@ -403,6 +431,29 @@ function DetailsModal({ booking: b, closeHref, returnTo }: { booking: BookingDet
               ))}
             </div>
           </>
+        )}
+
+        {special && b.paymentStatus === "unpaid" && b.source === "web" && service && (
+          <form action={updateSpecialBookingFeeAction} className="special-fee-form">
+            <input type="hidden" name="bookingId" value={b.id} />
+            <input type="hidden" name="returnTo" value={returnTo} />
+            <label htmlFor={`special-fee-${b.id}`}>Set extra fee for this special request (₱)</label>
+            <div className="special-fee-controls">
+              <input
+                id={`special-fee-${b.id}`}
+                name="specialFee"
+                type="number"
+                min="0"
+                max="1000000"
+                step="0.01"
+                defaultValue={extraFee === null ? "" : extraFee.toFixed(2)}
+                placeholder="0.00"
+                required
+              />
+              <button type="submit" className="action-button approve-button">Update total</button>
+            </div>
+            <p>Base {formatPeso(baseFee)}{extraFee === null ? " + fee to be quoted" : ` + ${formatPeso(extraFee)} = ${formatPeso(Number(b.fee ?? 0))}`}. Set this before verifying payment; the receipt will include the final breakdown.</p>
+          </form>
         )}
 
         {b.notes && (

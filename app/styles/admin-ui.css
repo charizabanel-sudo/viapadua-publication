@@ -74,6 +74,7 @@
     }
     .btn:disabled, .btn[aria-disabled="true"] { opacity: 0.6; cursor: not-allowed; }
     .btn-sm { height: 34px; padding: 0 12px; font-size: 13px; border-radius: 8px; }
+    .btn.dashboard-review-button { height: 34px; padding: 0 12px; font-size: 13px; }
     .btn-primary { background: var(--brand); color: #ffffff; }
     .btn-primary:hover { background: var(--brand-hover); }
     .btn-gold { background: var(--accent); color: var(--brand-deep); }

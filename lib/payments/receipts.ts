@@ -3,6 +3,8 @@ import type { Db } from "@/lib/db/client";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { SITE } from "@/lib/site";
 import { PARISH_TIMEZONE } from "@/lib/booking/schedule";
+import { getBookableService } from "@/lib/booking/catalog";
+import { AUTHORIZED_SIGNATURE_PNG } from "@/lib/payments/receipt-signature";
 
 /**
  * Parish payment receipts. One shared flow for GCash and Pay at the Church:
@@ -30,9 +32,18 @@ export type ReceiptSnapshot = {
   paymentMethodLabel: string;
   gcashReference: string | null;
   gcashAccountName: string | null;
-  paymentDate: string;
+  paymentDate: string | null;
   issueDate: string;
   parish: { name: string; address: string };
+  template?: "web-booking";
+  paymentStatus?: "paid" | "unpaid";
+  payerPhone?: string | null;
+  appointmentDate?: string;
+  appointmentTime?: string | null;
+  serviceDetails?: { label: string; value: string }[];
+  baseAmount?: string;
+  specialFee?: string | null;
+  specialQuotePending?: boolean;
 };
 
 export type PaymentFailure = "not_found" | "already_paid" | "cancelled" | "verification_required" | "missing_fee" | "missing_method" | "historical_incomplete";
@@ -46,14 +57,90 @@ export function receiptNumberFor(serial: number, at: Date): string {
   return `VPR-${manilaDate(at).slice(0, 4)}-${String(serial).padStart(6, "0")}`;
 }
 
-type BookingRow = { id: number; reference: string; status: string; payment_status: string; payment_method: string | null; fee: string | null; paid_at: Date | null; requester_name: string; service: string; gcash_reference: string | null; gcash_name: string | null };
+type BookingRow = { id: number; reference: string; status: string; payment_status: string; payment_method: string | null; fee: string | null; paid_at: Date | null; requester_name: string; requester_phone: string | null; service: string; booking_date: Date; booking_time: string | null; details: Prisma.JsonValue | null; source: string; gcash_reference: string | null; gcash_name: string | null };
 
 async function lockBooking(tx: Prisma.TransactionClient, bookingId: number): Promise<BookingRow | undefined> {
   const rows = await tx.$queryRaw<BookingRow[]>`
     SELECT id, reference, status::text AS status, payment_status::text AS payment_status, payment_method::text AS payment_method,
-           fee::text AS fee, paid_at, requester_name, service, gcash_reference, gcash_name
+           fee::text AS fee, paid_at, requester_name, requester_phone, service, booking_date, booking_time,
+           details, source::text AS source, gcash_reference, gcash_name
     FROM bookings WHERE id = ${bookingId} FOR UPDATE`;
   return rows[0];
+}
+
+function serviceDetails(details: Prisma.JsonValue | null): { label: string; value: string }[] {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return [];
+  const serviceCode = typeof details.serviceCode === "string" ? details.serviceCode : "";
+  const service = getBookableService(serviceCode);
+  const labels = new Map(service?.fields.flat().map((field) => [field.name, field.label]) ?? []);
+  labels.set("serviceType", "Appointment type");
+  labels.set("specialRequest", "Special request");
+  return Object.entries(details).flatMap(([key, value]) => {
+    if (key === "serviceCode" || typeof value !== "string" || !value.trim()) return [];
+    const label = labels.get(key);
+    return label ? [{ label, value: value.trim() }] : [];
+  });
+}
+
+function specialFeeBreakdown(details: Prisma.JsonValue | null): Pick<ReceiptSnapshot, "baseAmount" | "specialFee" | "specialQuotePending"> {
+  if (!details || typeof details !== "object" || Array.isArray(details) || details.serviceType !== "Special") return {};
+  const serviceCode = typeof details.serviceCode === "string" ? details.serviceCode : "";
+  const service = getBookableService(serviceCode);
+  const feeValue = details.specialFee;
+  const fee = typeof feeValue === "string" && /^\d+(?:\.\d{1,2})?$/.test(feeValue) && Number.isFinite(Number(feeValue))
+    ? Number(feeValue).toFixed(2)
+    : null;
+  return {
+    ...(service ? { baseAmount: Number(service.fee).toFixed(2) } : {}),
+    specialFee: fee,
+    specialQuotePending: fee === null,
+  };
+}
+
+type WebReceiptData = {
+  reference: string;
+  payerName: string;
+  payerPhone: string | null;
+  service: string;
+  amount: string;
+  paymentMethod: "gcash" | "church";
+  gcashReference: string | null;
+  gcashAccountName: string | null;
+  bookingDate: Date;
+  bookingTime: string | null;
+  details: Prisma.JsonValue | null;
+};
+
+function webReceiptSnapshot(data: WebReceiptData, status: "paid" | "unpaid", now: Date, paidAt?: Date): ReceiptSnapshot {
+  return {
+    receiptNumber: data.reference,
+    bookingReference: data.reference,
+    payerName: data.payerName,
+    service: data.service,
+    amount: Number(data.amount).toFixed(2),
+    currency: "PHP",
+    paymentMethod: data.paymentMethod,
+    paymentMethodLabel: data.paymentMethod === "gcash" ? "GCash" : "Pay at the church",
+    gcashReference: data.paymentMethod === "gcash" ? data.gcashReference : null,
+    gcashAccountName: data.paymentMethod === "gcash" ? data.gcashAccountName : null,
+    paymentDate: paidAt ? manilaDate(paidAt) : null,
+    issueDate: manilaDate(now),
+    parish: { ...PARISH_DETAILS },
+    template: "web-booking",
+    paymentStatus: status,
+    payerPhone: data.payerPhone,
+    appointmentDate: data.bookingDate.toISOString().slice(0, 10),
+    appointmentTime: data.bookingTime,
+    serviceDetails: serviceDetails(data.details),
+    ...specialFeeBreakdown(data.details),
+  };
+}
+
+export type UnpaidWebReceiptBooking = WebReceiptData & { paymentStatus: "unpaid" };
+
+export function unpaidWebReceiptSnapshot(booking: UnpaidWebReceiptBooking, now = new Date()): ReceiptSnapshot {
+  if (!(Number(booking.amount) > 0)) throw new Error("A positive booking fee is required to generate a receipt.");
+  return webReceiptSnapshot(booking, "unpaid", now);
 }
 
 /** Creates the single receipt row for a paid booking (inside the caller's locked transaction). */
@@ -63,21 +150,35 @@ async function createPendingReceipt(tx: Prisma.TransactionClient, b: BookingRow,
   const [{ serial }] = await tx.$queryRaw<{ serial: number }[]>`SELECT nextval(pg_get_serial_sequence('payment_receipts', 'serial'))::int AS serial`;
   const now = new Date();
   const method = b.payment_method as "gcash" | "church";
-  const snapshot: ReceiptSnapshot = {
-    receiptNumber: receiptNumberFor(serial, now),
-    bookingReference: b.reference,
-    payerName: b.requester_name,
-    service: b.service,
-    amount: Number(b.fee).toFixed(2),
-    currency: "PHP",
-    paymentMethod: method,
-    paymentMethodLabel: method === "gcash" ? "GCash" : "Paid at the church",
-    gcashReference: method === "gcash" ? b.gcash_reference : null,
-    gcashAccountName: method === "gcash" ? b.gcash_name : null,
-    paymentDate: manilaDate(paidAt),
-    issueDate: manilaDate(now),
-    parish: { ...PARISH_DETAILS },
-  };
+  const snapshot: ReceiptSnapshot = b.source === "web"
+    ? webReceiptSnapshot({
+        reference: b.reference,
+        payerName: b.requester_name,
+        payerPhone: b.requester_phone,
+        service: b.service,
+        amount: b.fee!,
+        paymentMethod: method,
+        gcashReference: b.gcash_reference,
+        gcashAccountName: b.gcash_name,
+        bookingDate: b.booking_date,
+        bookingTime: b.booking_time,
+        details: b.details,
+      }, "paid", now, paidAt)
+    : {
+        receiptNumber: receiptNumberFor(serial, now),
+        bookingReference: b.reference,
+        payerName: b.requester_name,
+        service: b.service,
+        amount: Number(b.fee).toFixed(2),
+        currency: "PHP",
+        paymentMethod: method,
+        paymentMethodLabel: method === "gcash" ? "GCash" : "Paid at the church",
+        gcashReference: method === "gcash" ? b.gcash_reference : null,
+        gcashAccountName: method === "gcash" ? b.gcash_name : null,
+        paymentDate: manilaDate(paidAt),
+        issueDate: manilaDate(now),
+        parish: { ...PARISH_DETAILS },
+      };
   const receipt = await tx.paymentReceipt.create({
     data: { serial, receiptNumber: snapshot.receiptNumber, bookingId: b.id, snapshot, amount: snapshot.amount, paymentMethod: method, paidAt, issuedById: adminId },
     select: { id: true },
@@ -181,7 +282,7 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
   pdf.setAuthor(s.parish.name);
   pdf.setSubject(`Payment receipt for appointment ${s.bookingReference}`);
   pdf.setCreator("Via Padua Parish Management System");
-  const page = pdf.addPage([595.28, 420]);
+  const page = pdf.addPage(s.template === "web-booking" ? [420, 595.28] : [595.28, 420]);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   // Standard fonts only encode WinAnsi; anything else is replaced rather than failing the receipt.
@@ -198,6 +299,110 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
   const W = page.getWidth();
   const text = (t: string, x: number, y: number, size: number, font = regular, c = INK) => page.drawText(safe(font, t), { x, y, size, font, color: color(c) });
 
+  if (s.template === "web-booking") {
+    const pageHeight = page.getHeight();
+    const left = 28;
+    const right = W - left;
+    const tableTop = 380;
+    const headerHeight = 22;
+    const rowHeight = 16;
+    const formatAmount = (amount: string) => `PHP ${Number(amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+    const rows = [
+      ...(s.baseAmount
+        ? [
+            { description: s.service, amount: "" },
+            { description: "Base service fee", amount: formatAmount(s.baseAmount) },
+            {
+              description: "Special request fee",
+              amount: s.specialQuotePending ? "" : formatAmount(s.specialFee ?? "0"),
+            },
+            ...(s.specialQuotePending ? [{ description: "Final total pending parish assessment", amount: "" }] : []),
+          ]
+        : [{ description: s.service, amount: formatAmount(s.amount) }]),
+      ...(s.serviceDetails ?? []).slice(0, 8).map((detail) => ({ description: `${detail.label}: ${detail.value}`, amount: "" })),
+      ...(s.gcashReference ? [{ description: `GCash reference: ${s.gcashReference}`, amount: "" }] : []),
+    ];
+    const tableBottom = tableTop - headerHeight - rows.length * rowHeight - 22;
+    const statusColor = s.paymentStatus === "paid" ? { r: 0.08, g: 0.42, b: 0.22 } : { r: 0.65, g: 0.12, b: 0.16 };
+    const detailsColor = { r: 0.18, g: 0.18, b: 0.18 };
+
+    text("DIOCESE OF LEGAZPI", 111, pageHeight - 28, 17, bold);
+    text("Roman Catholic Bishop of Legazpi, Inc.", 108, pageHeight - 47, 11);
+    text("Parish of: St. Anthony of Padua", 118, pageHeight - 73, 12, bold);
+    page.drawLine({ start: { x: left, y: pageHeight - 82 }, end: { x: right, y: pageHeight - 82 }, thickness: 0.8, color: color(INK) });
+    page.drawRectangle({ x: left, y: 493, width: 174, height: 25, color: color(INK) });
+    text("OFFICIAL RECEIPT", left + 10, 501, 12, bold, { r: 1, g: 1, b: 1 });
+    text(`No. ${s.bookingReference}`, 211, 502, 10, bold, { r: 0.55, g: 0.08, b: 0.16 });
+    page.drawRectangle({ x: 329, y: 493, width: 63, height: 24, borderColor: color(statusColor), borderWidth: 1.5 });
+    text(s.paymentStatus === "paid" ? "PAID" : "UNPAID", 334, 500, 10, bold, statusColor);
+    text(`Date: ${longDate(s.issueDate)}`, 270, 472, 8, regular, detailsColor);
+
+    text("Received from", left, 449, 10, bold);
+    text(s.payerName.slice(0, 42), 112, 449, 10);
+    page.drawLine({ start: { x: 112, y: 446 }, end: { x: right, y: 446 }, thickness: 0.55, color: color(MUTED) });
+    text("CP No.", left, 428, 10, bold);
+    text((s.payerPhone ?? "").slice(0, 24), 75, 428, 10);
+    page.drawLine({ start: { x: 75, y: 425 }, end: { x: 228, y: 425 }, thickness: 0.55, color: color(MUTED) });
+    text(s.specialQuotePending ? "Base amount" : "Amount", 239, 428, 10, bold);
+    text(`PHP ${Number(s.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`, 286, 428, 10);
+    page.drawLine({ start: { x: 286, y: 425 }, end: { x: right, y: 425 }, thickness: 0.55, color: color(MUTED) });
+    text(`Payment: ${s.paymentMethodLabel}`, left, 407, 9);
+    text(s.paymentStatus === "paid" ? `Payment date: ${longDate(s.paymentDate ?? s.issueDate)}` : "Payment status: UNPAID", 214, 407, 9, bold, statusColor);
+    text(`Appointment: ${longDate(s.appointmentDate ?? s.issueDate)}${s.appointmentTime ? ` at ${s.appointmentTime}` : ""}`, left, 390, 9);
+
+    page.drawRectangle({ x: left, y: tableBottom, width: right - left, height: tableTop - tableBottom, borderColor: color(INK), borderWidth: 1 });
+    page.drawLine({ start: { x: left, y: tableTop - headerHeight }, end: { x: right, y: tableTop - headerHeight }, thickness: 1, color: color(INK) });
+    page.drawLine({ start: { x: 286, y: tableBottom }, end: { x: 286, y: tableTop }, thickness: 1, color: color(INK) });
+    page.drawLine({ start: { x: 331, y: tableBottom }, end: { x: 331, y: tableTop }, thickness: 1, color: color(INK) });
+    text("FOR", left + 6, tableTop - 15, 10, bold);
+    text("QTY", 294, tableTop - 15, 8, bold);
+    text("AMOUNT", 338, tableTop - 15, 8, bold);
+    rows.forEach((row, index) => {
+      const top = tableTop - headerHeight - index * rowHeight;
+      const baseline = top - 12;
+      text(row.description.slice(0, 52), left + 6, baseline, 8, index === 0 ? bold : regular, detailsColor);
+      if (row.amount) text(row.amount, 334, baseline, 8, bold, detailsColor);
+      page.drawLine({ start: { x: left, y: top - rowHeight }, end: { x: right, y: top - rowHeight }, thickness: 0.6, color: color(MUTED) });
+    });
+    text("THANK YOU", left + 6, tableBottom + 6, 9, bold);
+    text(s.specialQuotePending ? "CURRENT PHP" : "TOTAL PHP", 207, tableBottom + 6, 9, bold);
+    text(Number(s.amount).toLocaleString("en-US", { minimumFractionDigits: 2 }), 337, tableBottom + 6, 8, bold);
+
+    const footerTop = tableBottom - 20;
+    const footerRows = [
+      ["Cash:", s.paymentStatus === "paid" && s.paymentMethod === "church" ? "Received" : ""],
+      ["M.O. No.:", ""],
+      ["Check No.:", ""],
+      ["Bank:", s.paymentMethod === "gcash" ? "GCash" : ""],
+    ];
+    footerRows.forEach(([label, value], index) => {
+      const y = footerTop - index * 15;
+      text(label, left, y, 9);
+      text(value, 77, y, 9);
+      page.drawLine({ start: { x: 76, y: y - 2 }, end: { x: 187, y: y - 2 }, thickness: 0.5, color: color(MUTED) });
+    });
+    text("By:", 207, footerTop, 10, bold);
+    page.drawLine({ start: { x: 228, y: tableBottom - 57 }, end: { x: right, y: tableBottom - 57 }, thickness: 0.7, color: color(INK) });
+    if (s.paymentStatus === "paid") {
+      const signature = await pdf.embedPng(AUTHORIZED_SIGNATURE_PNG);
+      const dimensions = signature.scale(0.42);
+      page.drawImage(signature, { x: 242, y: tableBottom - 74, width: dimensions.width, height: dimensions.height });
+    }
+    text("Authorized Signature", 273, tableBottom - 86, 9);
+    text(
+      s.paymentStatus === "paid"
+        ? "Payment verified by the parish office."
+        : "No payment has been received; this is not proof of payment.",
+      left,
+      24,
+      7,
+      regular,
+      MUTED,
+    );
+    text("System-generated booking receipt; not a government-registered official receipt or invoice.", left, 12, 7, regular, MUTED);
+    return pdf.save();
+  }
+
   page.drawRectangle({ x: 0, y: 330, width: W, height: 90, color: color(BLUE) });
   text(s.parish.name, 36, 388, 16, bold, { r: 1, g: 1, b: 1 });
   text(s.parish.address, 36, 370, 10, regular, { r: 0.84, g: 0.9, b: 0.97 });
@@ -211,7 +416,7 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
     ["Appointment reference", s.bookingReference],
     ["Payment method", s.paymentMethodLabel],
     ...(s.gcashReference ? ([["GCash reference", s.gcashReference]] as [string, string][]) : []),
-    ["Payment date", longDate(s.paymentDate)],
+    ["Payment date", s.paymentDate ? longDate(s.paymentDate) : "Unpaid"],
     ["Date issued", longDate(s.issueDate)],
   ];
   let y = 300;

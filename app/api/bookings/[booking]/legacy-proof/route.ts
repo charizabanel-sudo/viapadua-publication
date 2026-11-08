@@ -6,9 +6,9 @@ import { getDb } from "@/lib/server/db";
 export const dynamic = "force-dynamic";
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ booking: string }> },
 ) {
-  const id = Number((await params).id);
+  const id = Number((await params).booking);
   const actor = await getActor();
   if (!actor.adminId && !actor.userId && !actor.guestHash)
     return fileError("Sign in again to open this document.", 401);

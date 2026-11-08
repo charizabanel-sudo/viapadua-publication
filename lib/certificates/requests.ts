@@ -46,10 +46,4 @@ export const requestSchema = z
         path: ["motherName"],
         message: "Enter the mother's name to locate the baptism record.",
       });
-    if (v.type === "baptism" && !v.fatherName)
-      ctx.addIssue({
-        code: "custom",
-        path: ["fatherName"],
-        message: "Enter the father's name to locate the baptism record.",
-      });
   });

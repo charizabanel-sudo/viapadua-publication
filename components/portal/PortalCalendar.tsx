@@ -222,9 +222,6 @@ export default function PortalCalendar({ data, prevHref, nextHref, todayHref }: 
           <p className="cal-note">Times shown in Philippine time. Availability is confirmed again when you submit a booking.</p>
         </section>
 
-        <ServicesLink className="btn btn-primary cal-book-now">
-          <i className="fas fa-calendar-plus" aria-hidden="true" /> Book Now
-        </ServicesLink>
       </aside>
     </div>
   );
