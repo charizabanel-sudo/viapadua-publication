@@ -1,9 +1,9 @@
 import FileDownload from "@/components/files/FileDownload";
 import UploadDocument from "@/components/portal/UploadDocument";
 import Link from "next/link";
-import DownloadLink from "@/components/admin/DownloadLink";
 import ActionButton from "@/components/admin/ActionButton";
 import CertificateEditor from "@/components/admin/CertificateEditor";
+import PrintButton from "@/components/admin/PrintButton";
 import { formatPeso } from "@/lib/booking/catalog";
 import { isBookingStatus } from "@/lib/booking/queries";
 import { formatDateLong, formatTime12h, toIsoDate } from "@/lib/booking/schedule";
@@ -49,7 +49,7 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
     const s = next.toString();
     return s ? `/admin/records?${s}` : "/admin/records";
   };
-  const exportHref = `/admin/export?kind=records${q ? `&q=${encodeURIComponent(q)}` : ""}${status ? `&status=${status}` : ""}`;
+  const exportHref = `/admin/export?kind=records&format=pdf${q ? `&q=${encodeURIComponent(q)}` : ""}${status ? `&status=${status}` : ""}`;
 
   return (
     <>
@@ -62,9 +62,7 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
           <Link className="btn btn-outline" href={pageHref(list.page)} prefetch={false}>
             <i className="fas fa-rotate" aria-hidden="true" /> Refresh
           </Link>
-          <DownloadLink className="btn btn-primary" href={exportHref}>
-            <i className="fas fa-download" aria-hidden="true" /> Export CSV
-          </DownloadLink>
+          <PrintButton label="Export PDF" href={exportHref} />
         </div>
       </header>
 
@@ -188,17 +186,17 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
                       </ActionButton>
                     )}
                     {r.paymentStatus === "paid" && r.paymentReceipt?.status === "issued" && r.paymentReceipt.documentId && (
-                      <FileDownload className="btn btn-outline btn-sm" href={`/api/documents/${r.paymentReceipt.documentId}`} previewHref={`/api/documents/${r.paymentReceipt.documentId}?preview=1`}>
+                      <FileDownload className="btn btn-receipt btn-sm" href={`/api/documents/${r.paymentReceipt.documentId}`}>
                         <i className="fas fa-receipt" aria-hidden="true" /> Receipt {r.paymentReceipt.receiptNumber}
                       </FileDownload>
                     )}
                     {r.paymentStatus === "paid" && r.paymentReceipt?.status === "pending" && (
-                      <ActionButton action={receiptAction} fields={{ bookingId: r.id }} className="btn btn-outline btn-sm" pendingLabel="Generating…">
+                      <ActionButton action={receiptAction} fields={{ bookingId: r.id }} className="btn btn-receipt btn-sm" pendingLabel="Generating…">
                         <i className="fas fa-rotate-right" aria-hidden="true" /> Retry receipt {r.paymentReceipt.receiptNumber}
                       </ActionButton>
                     )}
                     {r.paymentStatus === "paid" && !r.paymentReceipt && r.paidAt && r.fee !== null && r.paymentMethod && (
-                      <ActionButton action={receiptAction} fields={{ bookingId: r.id }} confirm={`Issue a parish payment receipt for ${r.reference} using the recorded payment date and amount?`} className="btn btn-outline btn-sm" pendingLabel="Generating…">
+                      <ActionButton action={receiptAction} fields={{ bookingId: r.id }} confirm={`Issue a parish payment receipt for ${r.reference} using the recorded payment date and amount?`} className="btn btn-receipt btn-sm" pendingLabel="Generating…">
                         <i className="fas fa-receipt" aria-hidden="true" /> Issue receipt
                       </ActionButton>
                     )}
@@ -221,7 +219,7 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
                       <i className="fas fa-eye" aria-hidden="true" /> View booking
                     </Link>
                   </div>
-                  <details className="portal-card"><summary>Private documents and receipts</summary>{r.paymentProof && <p><FileDownload href={`/api/bookings/${r.id}/legacy-proof`} previewHref={`/api/bookings/${r.id}/legacy-proof?preview=1`}>Historical payment evidence</FileDownload></p>}{r.documents.map(d => <p key={d.id}><FileDownload href={`/api/documents/${d.id}`} previewHref={`/api/documents/${d.id}?preview=1`}>{documentLabel(d.kind)}: {d.filename}</FileDownload></p>)}<UploadDocument bookingId={r.id} kind="payment_proof" />{r.paymentStatus === "paid" && !r.paymentReceipt && <UploadDocument bookingId={r.id} kind="receipt" />}{certEligible && <UploadDocument bookingId={r.id} kind="certificate" />}</details>
+                  <details className="portal-card private-documents"><summary>Private documents and receipts</summary>{r.paymentProof && <p><FileDownload href={`/api/bookings/${r.id}/legacy-proof`} previewHref={`/api/bookings/${r.id}/legacy-proof?preview=1`}>Historical payment evidence</FileDownload></p>}{r.documents.map(d => <p key={d.id}><FileDownload href={`/api/documents/${d.id}`} previewHref={`/api/documents/${d.id}?preview=1`}>{documentLabel(d.kind)}: {d.filename}</FileDownload></p>)}<UploadDocument bookingId={r.id} kind="payment_proof" />{r.paymentStatus === "paid" && !r.paymentReceipt && <UploadDocument bookingId={r.id} kind="receipt" />}{certEligible && <UploadDocument bookingId={r.id} kind="certificate" />}</details>
                 </article>
               );
             })}

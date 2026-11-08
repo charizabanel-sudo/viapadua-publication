@@ -89,6 +89,9 @@ model Booking {
   service           String         @db.VarChar(100)
   bookingDate       DateTime       @map("booking_date") @db.Date
   bookingTime       String?        @map("booking_time") @db.VarChar(20)
+  requestedDate     DateTime?      @map("requested_date") @db.Date
+  requestedTime     String?        @map("requested_time") @db.VarChar(20)
+  rescheduleRequestedAt DateTime?  @map("reschedule_requested_at") @db.Timestamptz(6)
   location          String?        @default("Main Chapel") @db.VarChar(100)
   status            BookingStatus  @default(pending)
   fee               Decimal?       @db.Decimal(10, 2)

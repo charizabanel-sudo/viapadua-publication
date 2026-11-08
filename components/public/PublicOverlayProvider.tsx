@@ -152,6 +152,7 @@ export function ServicesLink({ service, step, children, ...props }: { service?: 
 const focusable = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 export function PublicDialog({ kind, labelledBy, className = "", children }: { kind: PublicOverlay; labelledBy: string; className?: string; children: ReactNode }) {
+  const pathname = usePathname();
   const { active, requestClose, registerDialog } = usePublicOverlay();
   const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -186,7 +187,7 @@ export function PublicDialog({ kind, labelledBy, className = "", children }: { k
   }, [visible, mounted, requestClose, kind]);
   if (!mounted) return null;
   return createPortal(
-    <div className={`public-overlay public-overlay-${kind}`} hidden={!visible}>
+    <div className={`public-overlay public-overlay-${kind}${pathname === "/portal" ? " public-overlay-portal" : ""}`} hidden={!visible}>
       <div className="public-overlay-backdrop" aria-hidden="true" onMouseDown={() => requestClose()} />
       <div id={`public-dialog-${kind}`} ref={ref} className={`public-dialog ${className}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1}>{children}</div>
     </div>, document.body,

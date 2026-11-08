@@ -195,6 +195,13 @@ export function validateBookingInput(raw: Record<string, string>, now: Date = ne
       else if (parsed.data !== "") details[field.name] = parsed.data;
     }
   }
+  if (service.code === "funeral") {
+    const birth = get("dateOfBirth").trim();
+    const death = get("dateOfDeath").trim();
+    if (birth && death && !fieldErrors.dateOfBirth && !fieldErrors.dateOfDeath && birth > death) {
+      fieldErrors.dateOfDeath = "Date of death cannot be earlier than date of birth.";
+    }
+  }
 
   let gcash: ValidBooking["gcash"] = null;
   if (base.success && base.data.payment_method === "gcash") {

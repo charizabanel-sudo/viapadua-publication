@@ -32,6 +32,7 @@ import {
   addDays,
   formatDateLong,
   formatTime12h,
+  findSlotConflict,
   isBlockedWeekday,
   isWithinServiceHours,
   todayInParish,
@@ -50,7 +51,6 @@ type Props = {
     name: string | null;
     qrPath: string | null;
   };
-  /** Rendered inside the signed-in portal: submissions are saved to the account. */
   signedIn?: boolean;
   account?: {
     fullname: string;
@@ -67,7 +67,6 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
     servicesState,
     navigateServices,
     requestClose,
-    requestOpen,
     registerGuard,
   } = usePublicOverlay();
   const service: BookableService | null =
@@ -77,6 +76,8 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
   const [payment, setPayment] = useState<Payment>("");
   const [serviceType, setServiceType] = useState<"ordinary" | "special" | null>(null);
   const [date, setDate] = useState("");
+  const [adminBlockedDate, setAdminBlockedDate] = useState(false);
+  const [reservedTimes, setReservedTimes] = useState<string[]>([]);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedBooking | null>(null);
@@ -87,9 +88,37 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
   const bookingFormRef = useRef<HTMLFormElement>(null);
   const gcashFirstFieldRef = useRef<HTMLInputElement>(null);
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
-  /** Same id for every retry of one submission; cleared once the parish system confirms it. */
   const requestIdRef = useRef("");
   const sendingRef = useRef(false);
+
+  useEffect(() => {
+    if (!date) {
+      return;
+    }
+    const controller = new AbortController();
+    void fetch(`/api/bookings?date=${encodeURIComponent(date)}`, { signal: controller.signal })
+      .then((response) => response.ok ? response.json() : null)
+      .then((availability: { blocked?: boolean; reserved?: string[] } | null) => {
+        if (!availability) return;
+        setAdminBlockedDate(Boolean(availability.blocked));
+        setReservedTimes(availability.reserved ?? []);
+        if (availability.blocked) {
+          setErrors((current) => ({
+            ...current,
+            bookDate: "The parish office is not accepting appointments on this date. Please choose another date.",
+          }));
+        } else {
+          setErrors((current) => {
+            const next = { ...current };
+            delete next.bookDate;
+            return next;
+          });
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [date]);
+
   const rawStep = servicesState.step;
   const certificateType = rawStep === "certificate" && SERVICE_CARDS.some((card) => card.slug === servicesState.service && card.certificate) ? servicesState.service : "";
   let step: Step = "catalog";
@@ -123,7 +152,6 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
     return () => window.removeEventListener("beforeunload", beforeUnload);
   }, [dirty, created]);
 
-  // Move focus into the GCash step when it opens (its form stays mounted to keep entered values).
   useEffect(() => {
     if (active !== "services") return;
     const frame = requestAnimationFrame(() => {
@@ -203,6 +231,14 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
       }));
       return;
     }
+    const conflict = findSlotConflict(value, reservedTimes);
+    if (conflict) {
+      setErrors((prev) => ({
+        ...prev,
+        bookTime: `This time conflicts with an existing appointment at ${formatTime12h(conflict)}. Please choose another time.`,
+      }));
+      return;
+    }
     clearError("bookTime");
   }
 
@@ -216,7 +252,6 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
       try {
         const outcome = await submitJson<BookingResult>("/api/bookings", { body: formData });
         if (outcome.kind === "uncertain") {
-          // Keep the request id: pressing submit again returns the saved booking instead of a duplicate.
           setFormError(UNCERTAIN_MESSAGE);
           return;
         }
@@ -257,6 +292,12 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
       setFormError(message);
       return;
     }
+    if (adminBlockedDate) {
+      const message = "The parish office is not accepting appointments on this date. Please choose another date.";
+      setErrors((prev) => ({ ...prev, bookDate: message }));
+      setFormError(message);
+      return;
+    }
     if (payment === "gcash") {
       setFormError(null);
       setStep("gcash");
@@ -285,7 +326,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
   }
 
   const today = todayInParish();
-  const dateBlocked = date !== "" && isBlockedWeekday(date);
+  const dateBlocked = date !== "" && (isBlockedWeekday(date) || adminBlockedDate);
   const hasServiceTypeChoice = service?.code === "baptism" || service?.code === "wedding";
 
   return (
@@ -294,25 +335,47 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
       labelledBy="services-workspace-title"
       className="vp-services services-workspace"
     >
+      {/* ===== HEADER: church photo banner + curved navy title bar ===== */}
       <header className="services-workspace-head">
-        <div>
-          <h2 id="services-workspace-title">Parish Services</h2>
-          <p>
-            {signedIn
-              ? "View requirements, book a service or request a certificate. Requests are saved to your account."
-              : "View requirements and book as a guest. No account is needed."}
-          </p>
+        <div className="services-parish-banner">
+          <div className="services-parish-identity">
+            <span className="services-parish-saint" aria-hidden="true">
+              {/* Place the portrait at public/images/church/st-anthony.png */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/church/st-anthony.jpg" alt="" />
+            </span>
+            <div className="services-parish-name">
+              <strong>St. Anthony of Padua Parish</strong>
+              <small>
+                <span className="dash" aria-hidden="true" />
+                Ponso, Polangui, Albay
+                <span className="rule" aria-hidden="true" />
+              </small>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="workspace-close"
+            onClick={close}
+            disabled={pending}
+            aria-label="Close services"
+          >
+            <i className="fas fa-times" aria-hidden="true" />
+          </button>
         </div>
-        <button
-          type="button"
-          className="workspace-close"
-          onClick={close}
-          disabled={pending}
-          aria-label="Close services"
-        >
-          <i className="fas fa-times" aria-hidden="true" />
-        </button>
+
+        <div className="services-workspace-title">
+          <div className="services-title-text">
+            <h2 id="services-workspace-title">Parish Services</h2>
+            <p>
+              {signedIn
+                ? "View requirements, book a service or request a certificate. Requests are saved to your account."
+                : "View requirements and book as a guest. No account is needed."}
+            </p>
+          </div>
+        </div>
       </header>
+
       <div className="services-workspace-body">
         {certificateType && (
           <CertificateRequestForm
@@ -334,8 +397,9 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
           />
         )}
         <div hidden={Boolean(certificateType)}>
-          <div className="services-workspace-nav">
-            {step !== "catalog" ? (
+          {/* Back button only appears once the person has left the catalog */}
+          {step !== "catalog" && (
+            <div className="services-workspace-nav">
               <button
                 type="button"
                 disabled={pending}
@@ -344,27 +408,22 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                 <i className="fas fa-arrow-left" aria-hidden="true" /> All
                 services
               </button>
-            ) : (
-              <span>Choose a parish service</span>
-            )}
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => requestOpen("chat")}
-            >
-              <i className="fas fa-comment" aria-hidden="true" /> Message the
-              parish
-            </button>
-          </div>
+            </div>
+          )}
+
           <section hidden={step !== "catalog"} aria-label="Available services">
-            <div className="blocked-notice">
+            <div className="blocked-notice" role="note">
               <i className="fas fa-calendar-alt" aria-hidden="true" />
               <p>
                 Appointments are unavailable on Sundays and Tuesdays. Please choose
                 another day.
               </p>
             </div>
-            <div className="service-catalog-menu" aria-label="Choose a parish service">
+
+            <h3 className="services-choose-title">Choose a parish service</h3>
+
+            {/* 3-column service grid */}
+            <div className="service-catalog-menu">
               {SERVICE_CARDS.map((card) => (
                 <button
                   type="button"
@@ -374,12 +433,17 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                   aria-controls={selectedCatalogService === card.slug ? `${card.slug}-details` : undefined}
                   onClick={() => setSelectedCatalogService((current) => current === card.slug ? null : card.slug)}
                 >
-                  {card.title}
-                  <i className={`fas fa-chevron-${selectedCatalogService === card.slug ? "up" : "down"}`} aria-hidden="true" />
+                  <span className="service-catalog-icon" aria-hidden="true">
+                    <i className={`fas ${card.icon}`} />
+                  </span>
+                  <span>{card.title}</span>
+                  <i className="fas fa-chevron-right service-catalog-arrow" aria-hidden="true" />
                 </button>
               ))}
             </div>
-            <div className="cards-grid service-catalog-details">
+
+            {/* Single card that appears below the grid */}
+            <div className="service-catalog-details">
               {SERVICE_CARDS.filter((card) => card.slug === selectedCatalogService).map((card) => {
                 const reqOpen = openReqs.has(card.slug);
                 const reqId = `req-${card.slug}`;
@@ -412,10 +476,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                       <ul>
                         {card.requirements.map((req) => (
                           <li key={req}>
-                            <i
-                              className="fas fa-check-circle"
-                              aria-hidden="true"
-                            />{" "}
+                            <i className="fas fa-check-circle" aria-hidden="true" />{" "}
                             {req}
                           </li>
                         ))}
@@ -423,9 +484,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                     </div>
                     <div className="fee-label">Service Fee</div>
                     <div className="fee-amount">{formatPeso(card.fee)}</div>
-                    <div className="payment-info">
-                      GCash or pay at the church
-                    </div>
+                    <div className="payment-info">GCash or pay at the church</div>
                     <div className="button-group">
                       <button
                         type="button"
@@ -436,7 +495,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                             : openBooking(card.serviceCodes[0])
                         }
                       >
-                        Set Appointment
+                        Book Now
                       </button>
                       {card.certificate && (
                         <button
@@ -451,6 +510,11 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                   </div>
                 );
               })}
+            </div>
+
+            {/* Gold rule with a small church in the middle */}
+            <div className="services-footer-ornament" aria-hidden="true">
+              <i className="fas fa-church" />
             </div>
           </section>
 
@@ -525,7 +589,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
             </div>
           </section>
 
-          {/* BOOKING FORM (kept mounted during the GCash step so its values are preserved) */}
+          {/* BOOKING FORM */}
           {service && (
             <section
               hidden={step !== "form"}
@@ -545,10 +609,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
 
               {formError && step === "form" && (
                 <div className="form-error" role="alert">
-                  <i
-                    className="fas fa-exclamation-triangle"
-                    aria-hidden="true"
-                  />
+                  <i className="fas fa-exclamation-triangle" aria-hidden="true" />
                   <span>{formError}</span>
                 </div>
               )}
@@ -564,12 +625,30 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                 {hasServiceTypeChoice && (
                   <div className="service-type-section service-type-first">
                     <input type="hidden" name="serviceType" value={serviceType ?? ""} />
-                    <span className="service-type-label">Choose {service.name} Type <span className="req">*</span></span>
+                    <span className="service-type-label">
+                      Choose {service.name} Type <span className="req">*</span>
+                    </span>
                     <div className="service-type-options">
-                      <button type="button" className={`service-type-option${serviceType === "ordinary" ? " active" : ""}`} aria-pressed={serviceType === "ordinary"} onClick={() => { setServiceType("ordinary"); setDirty(true); }}>
+                      <button
+                        type="button"
+                        className={`service-type-option${serviceType === "ordinary" ? " active" : ""}`}
+                        aria-pressed={serviceType === "ordinary"}
+                        onClick={() => {
+                          setServiceType("ordinary");
+                          setDirty(true);
+                        }}
+                      >
                         Ordinary {service.name}
                       </button>
-                      <button type="button" className={`service-type-option${serviceType === "special" ? " active" : ""}`} aria-pressed={serviceType === "special"} onClick={() => { setServiceType("special"); setDirty(true); }}>
+                      <button
+                        type="button"
+                        className={`service-type-option${serviceType === "special" ? " active" : ""}`}
+                        aria-pressed={serviceType === "special"}
+                        onClick={() => {
+                          setServiceType("special");
+                          setDirty(true);
+                        }}
+                      >
                         Special {service.name}
                       </button>
                     </div>
@@ -577,282 +656,269 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                 )}
                 {(!hasServiceTypeChoice || serviceType !== null) && (
                   <>
-                {signedIn && account && (
-                  <>
-                    <input type="hidden" name="bookFullName" value={account.fullname} />
-                    <input type="hidden" name="bookEmail" value={account.email} />
-                    <input type="hidden" name="bookContact" value={account.phone ?? ""} />
-                  </>
-                )}
-                <div className="hp-field" aria-hidden="true">
-                  <label htmlFor="website">Website</label>
-                  <input
-                    id="website"
-                    name="website"
-                    type="text"
-                    tabIndex={-1}
-                    autoComplete="off"
-                  />
-                </div>
+                    {signedIn && account && (
+                      <>
+                        <input type="hidden" name="bookFullName" value={account.fullname} />
+                        <input type="hidden" name="bookEmail" value={account.email} />
+                        <input type="hidden" name="bookContact" value={account.phone ?? ""} />
+                      </>
+                    )}
+                    <div className="hp-field" aria-hidden="true">
+                      <label htmlFor="website">Website</label>
+                      <input
+                        id="website"
+                        name="website"
+                        type="text"
+                        tabIndex={-1}
+                        autoComplete="off"
+                      />
+                    </div>
 
-                {!signedIn && (
-                  <>
+                    {!signedIn && (
+                      <>
+                        <div className="form-row">
+                          <TextInput
+                            name="bookFullName"
+                            label="Full Name"
+                            required
+                            autoComplete="name"
+                            errors={errors}
+                            onEdit={clearError}
+                          />
+                          <TextInput
+                            name="bookContact"
+                            label="Contact Number"
+                            type="tel"
+                            required
+                            placeholder="09XX XXX XXXX"
+                            autoComplete="tel"
+                            errors={errors}
+                            onEdit={clearError}
+                          />
+                        </div>
+                        <TextInput
+                          name="bookEmail"
+                          label="Email Address"
+                          type="email"
+                          required
+                          placeholder="you@example.com"
+                          autoComplete="email"
+                          errors={errors}
+                          onEdit={clearError}
+                        />
+                      </>
+                    )}
+
                     <div className="form-row">
-                      <TextInput
-                        name="bookFullName"
-                        label="Full Name"
-                        required
-                        autoComplete="name"
-                        errors={errors}
-                        onEdit={clearError}
-                      />
-                      <TextInput
-                        name="bookContact"
-                        label="Contact Number"
-                        type="tel"
-                        required
-                        placeholder="09XX XXX XXXX"
-                        autoComplete="tel"
-                        errors={errors}
-                        onEdit={clearError}
-                      />
+                      <div className="form-group">
+                        <label htmlFor="f-bookDate">
+                          Preferred Date <span className="req">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          id="f-bookDate"
+                          name="bookDate"
+                          required
+                          min={today}
+                          max={today ? addDays(today, MAX_ADVANCE_DAYS) : undefined}
+                          value={date}
+                          aria-invalid={Boolean(errors.bookDate) || dateBlocked}
+                          aria-describedby="f-bookDate-hint"
+                          onChange={(e) => {
+                            setDate(e.target.value);
+                            if (!e.target.value) {
+                              setAdminBlockedDate(false);
+                              setReservedTimes([]);
+                            }
+                            clearError("bookDate");
+                          }}
+                        />
+                        <div
+                          className={`form-hint${dateBlocked || errors.bookDate ? " warn" : ""}`}
+                          id="f-bookDate-hint"
+                        >
+                          {errors.bookDate ? (
+                            <>
+                              <i className="fas fa-exclamation-circle" aria-hidden="true" />{" "}
+                              {errors.bookDate}
+                            </>
+                          ) : dateBlocked ? (
+                            <>
+                              <i className="fas fa-exclamation-circle" aria-hidden="true" />{" "}
+                              {adminBlockedDate
+                                ? "This date is blocked by the parish office"
+                                : `${weekdayName(date)} is blocked`}
+                            </>
+                          ) : (
+                            <>
+                              <i className="fas fa-info-circle" aria-hidden="true" /> Not
+                              available on Sundays &amp; Tuesdays
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="f-bookTime">
+                          Preferred Time <span className="req">*</span>
+                        </label>
+                        <input
+                          type="time"
+                          id="f-bookTime"
+                          name="bookTime"
+                          required
+                          min={EARLIEST_TIME}
+                          max={LATEST_TIME}
+                          step={60}
+                          aria-invalid={Boolean(errors.bookTime)}
+                          aria-describedby="f-bookTime-hint"
+                          onChange={(event) => validateTime(event.currentTarget.value)}
+                        />
+                        <div
+                          className={`form-hint${errors.bookTime ? " warn" : ""}`}
+                          id="f-bookTime-hint"
+                        >
+                          {errors.bookTime ? (
+                            <>
+                              <i className="fas fa-exclamation-circle" aria-hidden="true" />{" "}
+                              {errors.bookTime}
+                            </>
+                          ) : (
+                            <>
+                              <i className="fas fa-info-circle" aria-hidden="true" />{" "}
+                              {formatTime12h(EARLIEST_TIME)} to {formatTime12h(LATEST_TIME)}
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <TextInput
-                      name="bookEmail"
-                      label="Email Address"
-                      type="email"
-                      required
-                      placeholder="you@example.com"
-                      autoComplete="email"
-                      errors={errors}
-                      onEdit={clearError}
-                    />
-                  </>
-                )}
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="f-bookDate">
-                      Preferred Date <span className="req">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      id="f-bookDate"
-                      name="bookDate"
-                      required
-                      min={today}
-                      max={today ? addDays(today, MAX_ADVANCE_DAYS) : undefined}
-                      value={date}
-                      aria-invalid={Boolean(errors.bookDate) || dateBlocked}
-                      aria-describedby="f-bookDate-hint"
-                      onChange={(e) => {
-                        setDate(e.target.value);
-                        clearError("bookDate");
-                      }}
-                    />
                     <div
-                      className={`form-hint${dateBlocked || errors.bookDate ? " warn" : ""}`}
-                      id="f-bookDate-hint"
+                      className={`date-warning${dateBlocked ? " show" : ""}`}
+                      role={dateBlocked ? "alert" : undefined}
                     >
-                      {errors.bookDate ? (
-                        <>
-                          <i
-                            className="fas fa-exclamation-circle"
-                            aria-hidden="true"
-                          />{" "}
-                          {errors.bookDate}
-                        </>
-                      ) : dateBlocked ? (
-                        <>
-                          <i
-                            className="fas fa-exclamation-circle"
-                            aria-hidden="true"
-                          />{" "}
-                          {weekdayName(date)} is blocked
-                        </>
-                      ) : (
-                        <>
-                          <i
-                            className="fas fa-info-circle"
-                            aria-hidden="true"
-                          />{" "}
-                          Not available on Sundays &amp; Tuesdays
-                        </>
-                      )}
+                      <i className="fas fa-exclamation-triangle" aria-hidden="true" />
+                      <span>
+                        {dateBlocked
+                          ? adminBlockedDate
+                            ? "The parish office is not accepting appointments on this date. Please choose another date."
+                            : `${weekdayName(date)} is not available for appointments. Please choose another date.`
+                          : ""}
+                      </span>
                     </div>
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="f-bookTime">
-                      Preferred Time <span className="req">*</span>
-                    </label>
-                    <input
-                      type="time"
-                      id="f-bookTime"
-                      name="bookTime"
-                      required
-                      min={EARLIEST_TIME}
-                      max={LATEST_TIME}
-                      step={60}
-                      aria-invalid={Boolean(errors.bookTime)}
-                      aria-describedby="f-bookTime-hint"
-                      onChange={(event) => validateTime(event.currentTarget.value)}
-                    />
-                    <div
-                      className={`form-hint${errors.bookTime ? " warn" : ""}`}
-                      id="f-bookTime-hint"
-                    >
-                      {errors.bookTime ? (
-                        <>
-                          <i
-                            className="fas fa-exclamation-circle"
-                            aria-hidden="true"
-                          />{" "}
-                          {errors.bookTime}
-                        </>
+
+                    {service.fields.map((row, i) =>
+                      row.length > 1 ? (
+                        <div className="form-row" key={i}>
+                          {row.map((field) => (
+                            <ServiceInput
+                              key={field.name}
+                              field={field}
+                              today={today}
+                              errors={errors}
+                              onEdit={clearError}
+                            />
+                          ))}
+                        </div>
                       ) : (
-                        <>
-                          <i
-                            className="fas fa-info-circle"
-                            aria-hidden="true"
-                          />{" "}
-                          {formatTime12h(EARLIEST_TIME)} to{" "}
-                          {formatTime12h(LATEST_TIME)}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  className={`date-warning${dateBlocked ? " show" : ""}`}
-                  role={dateBlocked ? "alert" : undefined}
-                >
-                  <i
-                    className="fas fa-exclamation-triangle"
-                    aria-hidden="true"
-                  />
-                  <span>
-                    {dateBlocked
-                      ? `${weekdayName(date)} is not available for appointments. Please choose another date.`
-                      : ""}
-                  </span>
-                </div>
-
-                {service.fields.map((row, i) =>
-                  row.length > 1 ? (
-                    <div className="form-row" key={i}>
-                      {row.map((field) => (
                         <ServiceInput
-                          key={field.name}
-                          field={field}
+                          key={row[0].name}
+                          field={row[0]}
                           today={today}
                           errors={errors}
                           onEdit={clearError}
                         />
-                      ))}
-                    </div>
-                  ) : (
-                    <ServiceInput
-                      key={row[0].name}
-                      field={row[0]}
-                      today={today}
-                      errors={errors}
-                      onEdit={clearError}
-                    />
-                  ),
-                )}
+                      ),
+                    )}
 
-                {(serviceType === "special" || !hasServiceTypeChoice) && (
-                  <div className="form-group">
-                    <label htmlFor={hasServiceTypeChoice ? "f-specialRequest" : "f-bookNotes"}>
-                      {hasServiceTypeChoice ? "Special Request" : "Additional Notes"}
-                      {hasServiceTypeChoice && <span className="req"> *</span>}
-                    </label>
-                    <textarea
-                      id={hasServiceTypeChoice ? "f-specialRequest" : "f-bookNotes"}
-                      name={hasServiceTypeChoice ? "specialRequest" : "bookNotes"}
-                      maxLength={1000}
-                      required={hasServiceTypeChoice}
-                      placeholder={hasServiceTypeChoice ? "Describe the special details or requests for your program..." : "Any additional instructions or requests..."}
-                      aria-invalid={hasServiceTypeChoice ? Boolean(errors.specialRequest) : Boolean(errors.bookNotes)}
-                    />
-                    {(hasServiceTypeChoice ? errors.specialRequest : errors.bookNotes) && (
-                      <div className="form-hint warn">
-                        {hasServiceTypeChoice ? errors.specialRequest : errors.bookNotes}
+                    {(serviceType === "special" || !hasServiceTypeChoice) && (
+                      <div className="form-group">
+                        <label htmlFor={hasServiceTypeChoice ? "f-specialRequest" : "f-bookNotes"}>
+                          {hasServiceTypeChoice ? "Special Request" : "Additional Notes"}
+                          {hasServiceTypeChoice && <span className="req"> *</span>}
+                        </label>
+                        <textarea
+                          id={hasServiceTypeChoice ? "f-specialRequest" : "f-bookNotes"}
+                          name={hasServiceTypeChoice ? "specialRequest" : "bookNotes"}
+                          maxLength={1000}
+                          required={hasServiceTypeChoice}
+                          placeholder={
+                            hasServiceTypeChoice
+                              ? "Describe the special details or requests for your program..."
+                              : "Any additional instructions or requests..."
+                          }
+                          aria-invalid={
+                            hasServiceTypeChoice
+                              ? Boolean(errors.specialRequest)
+                              : Boolean(errors.bookNotes)
+                          }
+                        />
+                        {(hasServiceTypeChoice ? errors.specialRequest : errors.bookNotes) && (
+                          <div className="form-hint warn">
+                            {hasServiceTypeChoice ? errors.specialRequest : errors.bookNotes}
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
 
-                <div className="payment-section-title" id="paymentTitle">
-                  <i className="fas fa-wallet" aria-hidden="true" /> Payment
-                  Method{" "}
-                  <span className="req" style={{ color: "#ef4444" }}>
-                    *
-                  </span>
-                </div>
-                <input type="hidden" name="payment_method" value={payment} />
-                <div
-                  className="payment-options"
-                  role="radiogroup"
-                  aria-labelledby="paymentTitle"
-                >
-                  <PaymentOption
-                    selected={payment === "gcash"}
-                    onSelect={() => {
-                      setPayment("gcash");
-                      setDirty(true);
-                      clearError("payment_method");
-                    }}
-                    icon="fa-mobile-alt"
-                    variant="gcash"
-                    title="GCash"
-                    description="Send via GCash, then enter your reference number"
-                  />
-                  <PaymentOption
-                    selected={payment === "church"}
-                    onSelect={() => {
-                      setPayment("church");
-                      setDirty(true);
-                      clearError("payment_method");
-                    }}
-                    icon="fa-church"
-                    variant="church"
-                    title="Pay at the Church"
-                    description="Pay in person at the parish office"
-                  />
-                </div>
-                {errors.payment_method && (
-                  <div className="form-hint warn payment-error">
-                    <i
-                      className="fas fa-exclamation-circle"
-                      aria-hidden="true"
-                    />{" "}
-                    {errors.payment_method}
-                  </div>
-                )}
+                    <div className="payment-section-title" id="paymentTitle">
+                      <i className="fas fa-wallet" aria-hidden="true" /> Payment Method{" "}
+                      <span className="req" style={{ color: "#ef4444" }}>*</span>
+                    </div>
+                    <input type="hidden" name="payment_method" value={payment} />
+                    <div
+                      className="payment-options"
+                      role="radiogroup"
+                      aria-labelledby="paymentTitle"
+                    >
+                      <PaymentOption
+                        selected={payment === "gcash"}
+                        onSelect={() => {
+                          setPayment("gcash");
+                          setDirty(true);
+                          clearError("payment_method");
+                        }}
+                        icon="fa-mobile-alt"
+                        variant="gcash"
+                        title="GCash"
+                        description="Send via GCash, then enter your reference number"
+                      />
+                      <PaymentOption
+                        selected={payment === "church"}
+                        onSelect={() => {
+                          setPayment("church");
+                          setDirty(true);
+                          clearError("payment_method");
+                        }}
+                        icon="fa-church"
+                        variant="church"
+                        title="Pay at the Church"
+                        description="Pay in person at the parish office"
+                      />
+                    </div>
+                    {errors.payment_method && (
+                      <div className="form-hint warn payment-error">
+                        <i className="fas fa-exclamation-circle" aria-hidden="true" />{" "}
+                        {errors.payment_method}
+                      </div>
+                    )}
 
-                <div className="modal-actions">
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={close}
-                    disabled={pending}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={pending}
-                  >
-                    {pending
-                      ? "Submitting…"
-                      : payment === "gcash"
-                        ? "Continue to GCash"
-                        : "Confirm Appointment"}
-                  </button>
-                </div>
+                    <div className="modal-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={close}
+                        disabled={pending}
+                      >
+                        Cancel
+                      </button>
+                      <button type="submit" className="btn btn-primary" disabled={pending}>
+                        {pending
+                          ? "Submitting…"
+                          : payment === "gcash"
+                            ? "Continue to GCash"
+                            : "Confirm Appointment"}
+                      </button>
+                    </div>
                   </>
                 )}
               </form>
@@ -873,14 +939,11 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
               <PaymentQr path={gcashPayee.qrPath} />
               <div className="gcash-info-box">
                 <strong>
-                  <i className="fas fa-info-circle" aria-hidden="true" /> Send
-                  your payment to:
+                  <i className="fas fa-info-circle" aria-hidden="true" /> Send your payment to:
                 </strong>
                 <br />
                 GCash Number:{" "}
-                <strong>
-                  {gcashPayee.number ?? "Please ask the parish office"}
-                </strong>
+                <strong>{gcashPayee.number ?? "Please ask the parish office"}</strong>
                 <br />
                 Account Name:{" "}
                 <strong>
@@ -889,23 +952,18 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                 </strong>
                 <br />
                 Amount to pay:{" "}
-                <span className="amount-highlight">
-                  {formatPeso(service.fee)}
-                </span>
+                <span className="amount-highlight">{formatPeso(service.fee)}</span>
               </div>
               <div className="notice-box">
-                <i className="fas fa-shield-alt" aria-hidden="true" /> Your
-                appointment stays <strong>pending and unpaid</strong> until the
-                parish office verifies your GCash reference. Submitting a
-                reference does not mark it as paid.
+                <i className="fas fa-shield-alt" aria-hidden="true" /> Your appointment
+                stays <strong>pending and unpaid</strong> until the parish office
+                verifies your GCash reference. Submitting a reference does not mark it
+                as paid.
               </div>
 
               {formError && step === "gcash" && (
                 <div className="form-error" role="alert">
-                  <i
-                    className="fas fa-exclamation-triangle"
-                    aria-hidden="true"
-                  />
+                  <i className="fas fa-exclamation-triangle" aria-hidden="true" />
                   <span>{formError}</span>
                 </div>
               )}
@@ -944,9 +1002,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                 />
                 <div className="form-group">
                   <span className="sr-only">Upload Payment Proof</span>
-                  <label htmlFor="payment-proof">
-                    Payment evidence (optional)
-                  </label>
+                  <label htmlFor="payment-proof">Payment evidence (optional)</label>
                   <input
                     id="payment-proof"
                     name="paymentProof"
@@ -954,8 +1010,8 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                     accept="image/jpeg,image/png,application/pdf"
                   />
                   <p>
-                    JPEG, PNG or PDF up to 3 MB. Uploaded privately; staff must
-                    verify payment.
+                    JPEG, PNG or PDF up to 3 MB. Uploaded privately; staff must verify
+                    payment.
                   </p>
                 </div>
                 <div className="modal-actions">
@@ -967,11 +1023,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                   >
                     Back
                   </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={pending}
-                  >
+                  <button type="submit" className="btn btn-primary" disabled={pending}>
                     {pending ? "Submitting…" : "Submit Appointment"}
                   </button>
                 </div>
@@ -1000,16 +1052,13 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                 </h3>
                 <p className="modal-subtitle" role="status">
                   <strong>Your request has been submitted to the parish office.</strong>{" "}
-                  Status: Pending. The parish office will review your request and contact you.
+                  Status: Pending. The parish office will review your request and
+                  contact you.
                 </p>
                 <div className="reference-box">
                   <div className="reference-label">Your reference number</div>
                   <div className="reference-value">{created.reference}</div>
-                  <button
-                    type="button"
-                    className="copy-btn"
-                    onClick={copyReference}
-                  >
+                  <button type="button" className="copy-btn" onClick={copyReference}>
                     <i className="fas fa-copy" aria-hidden="true" />{" "}
                     {copied ? "Copied" : "Copy reference"}
                   </button>
@@ -1036,18 +1085,13 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                 </div>
               </div>
               <div className="notice-box">
-                Please save your reference number and present it at the parish
-                office.{" "}
+                Please save your reference number and present it at the parish office.{" "}
                 {created.paymentMethod === "church"
                   ? "Payment is made in person at the parish office."
                   : "The parish office will verify your GCash reference before marking the appointment as paid."}
               </div>
               <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={close}
-                >
+                <button type="button" className="btn btn-primary" onClick={close}>
                   Done
                 </button>
               </div>

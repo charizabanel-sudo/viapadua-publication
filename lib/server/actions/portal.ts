@@ -56,11 +56,14 @@ export async function updateUserAppointment(form: FormData) {
       });
       if (findSlotConflict(time, conflicts.map((item) => item.bookingTime)))
         throw new Error("That appointment time conflicts with another schedule.");
+      const blocked = await tx.blockedDate.findUnique({ where: { date: new Date(`${date}T00:00:00.000Z`) }, select: { id: true } });
+      if (blocked) throw new Error("The parish office is not accepting appointments on this date.");
       await tx.booking.update({
         where: { id: bookingId },
         data: {
-          bookingDate: new Date(`${date}T00:00:00.000Z`),
-          bookingTime: time,
+          requestedDate: new Date(`${date}T00:00:00.000Z`),
+          requestedTime: time,
+          rescheduleRequestedAt: new Date(),
           updatedAt: new Date(),
         },
       });
@@ -75,7 +78,7 @@ export async function updateUserAppointment(form: FormData) {
     };
   }
   revalidatePath("/portal");
-  return { ok: true, message: "Appointment schedule updated." };
+  return { ok: true, message: "Reschedule request sent to the parish office." };
 }
 
 export async function cancelUserAppointment(form: FormData) {

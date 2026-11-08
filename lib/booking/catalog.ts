@@ -35,6 +35,7 @@ export type ServiceCard = {
   slug: string;
   title: string;
   subtitle: string;
+  /** Font Awesome icon class (without the "fas" prefix). */
   icon: string;
   about: string;
   requirements: readonly string[];
@@ -163,6 +164,9 @@ export const BOOKABLE_SERVICES: readonly BookableService[] = [
     fields: [
       [
         { name: "deceasedName", label: "Name of Deceased", type: "text", required: true, placeholder: "Full name" },
+      ],
+      [
+        { name: "dateOfBirth", label: "Date of Birth", type: "date", required: true, pastOnly: true },
         { name: "dateOfDeath", label: "Date of Death", type: "date", required: true, pastOnly: true },
       ],
       [
@@ -253,7 +257,7 @@ export const SERVICE_CARDS: readonly ServiceCard[] = [
     slug: "blessing",
     title: "Blessing",
     subtitle: "House or Business blessing",
-    icon: "fa-hand-holding-heart",
+    icon: "fa-praying-hands",
     about:
       "Request a blessing for your new home or business. Choose the type of blessing below and our parish priest will schedule a visit.",
     requirements: ["Complete address of house/business", "Preferred date & time", "Contact person & number"],
@@ -275,7 +279,7 @@ export const SERVICE_CARDS: readonly ServiceCard[] = [
     slug: "mass-intention",
     title: "Mass Intention",
     subtitle: "Request mass intentions",
-    icon: "fa-pray",
+    icon: "fa-wine-glass",
     about: "Schedule thanksgiving or memorial mass. Offer a mass intention for a loved one or for a special occasion.",
     requirements: ["Intention details", "Preferred date & time", "Mass offering"],
     fee: 300,

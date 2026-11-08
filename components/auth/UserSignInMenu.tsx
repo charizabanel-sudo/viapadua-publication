@@ -7,7 +7,7 @@ import AccountForm from "@/components/auth/AccountForm";
 import { PublicDialog, ServicesLink, usePublicOverlay } from "@/components/public/PublicOverlayProvider";
 import { safeReturnPath } from "@/lib/auth/return-path";
 
-/** Parishioner sign-in: a floating card over the homepage, styled like the admin card but clearly labelled. */
+/** Unified sign-in for parishioner and authorized staff accounts. */
 export default function UserSignInMenu() {
   const { active, requestOpen } = usePublicOverlay();
   const pathname = usePathname();
@@ -21,7 +21,7 @@ export default function UserSignInMenu() {
   return (
     <>
       <Link href="/?signin=1" scroll={false} className={`nav-btn${open ? " active" : ""}`} aria-haspopup="dialog" aria-controls="public-dialog-signin" aria-expanded={open} onClick={click}>
-        <i className="fas fa-user" aria-hidden="true" /> Sign in
+        Sign in
       </Link>
       <Suspense fallback={null}><UserSignInDialog /></Suspense>
     </>
@@ -29,7 +29,7 @@ export default function UserSignInMenu() {
 }
 
 function UserSignInDialog() {
-  const { active, requestClose, requestOpen } = usePublicOverlay();
+  const { active, requestClose } = usePublicOverlay();
   const params = useSearchParams();
   const titleId = useId();
   const next = active === "signin" ? safeReturnPath(params.get("next")) : null;
@@ -40,16 +40,13 @@ function UserSignInDialog() {
         <button type="button" className="login-close" onClick={requestClose} aria-label="Close sign in"><i className="fas fa-times" aria-hidden="true" /></button>
         <div className="login-card-head">
           <div className="login-logo" aria-hidden="true"><i className="fas fa-church" /></div>
-          <span className="login-role">Parishioner account</span>
-          <h2 id={titleId}>Sign In</h2>
-          <p>Appointments, receipts, certificates and messages</p>
+        <h2 id={titleId}>Sign In</h2>
+        <p>Access your account or parish staff dashboard</p>
         </div>
         {/* Remount after a sign-out/sign-in cycle so stale errors never reappear. */}
         {active === "signin" && <AccountForm idPrefix="home-user-" next={next} />}
         <p className="login-card-foot">
           New here? <Link href={registerHref}>Create an account</Link> · <ServicesLink>Book as a guest</ServicesLink>
-          <br />
-          Parish staff? <button type="button" className="login-switch" onClick={() => requestOpen("login")}>Admin sign in</button>
         </p>
       </div>
     </PublicDialog>

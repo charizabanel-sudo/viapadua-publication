@@ -8,6 +8,8 @@ import { requireAdmin } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
 import StatusButton from "../StatusButton";
 import BookingDetailsDialog from "@/components/admin/BookingDetailsDialog";
+import PrintButton from "@/components/admin/PrintButton";
+import { reviewBookingRescheduleAction } from "../actions";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -57,6 +59,8 @@ function noticeMessage(notice: string): { kind: "success" | "error"; text: strin
   if (kind === "stale") return { kind: "error", text: `Appointment ${ref} was already updated, so no change was made. The list shows its current status.` };
   if (kind === "not_found") return { kind: "error", text: "That appointment no longer exists." };
   if (kind === "invalid") return { kind: "error", text: "Invalid request." };
+  if (kind === "rescheduled") return { kind: "success", text: `Reschedule for appointment ${ref} was approved.` };
+  if (kind === "reschedule_rejected") return { kind: "success", text: `Reschedule for appointment ${ref} was rejected.` };
   return null;
 }
 
@@ -93,12 +97,20 @@ export default async function AdminBookingsPage({ searchParams }: { searchParams
     return s ? `/admin/bookings?${s}` : "/admin/bookings";
   };
   const returnTo = href({});
+  const exportHref = `/admin/export?kind=records&format=pdf${q ? `&q=${encodeURIComponent(q)}` : ""}${status ? `&status=${status}` : ""}`;
 
   return (
     <>
-      <header className="page-header">
-        <h1>Manage Appointments</h1>
-        <p>Review, confirm, or cancel appointments submitted by parishioners</p>
+      <header className="page-header with-actions">
+        <div>
+          <h1>Manage Appointments</h1>
+          <p>Review, confirm, or cancel appointments submitted by parishioners</p>
+        </div>
+        {!samples && (
+          <div className="page-actions no-print">
+            <PrintButton label="Download PDF" href={exportHref} />
+          </div>
+        )}
       </header>
 
       <nav className="sample-toggle" aria-label="Appointment set">
@@ -231,6 +243,7 @@ function BookingCard({ booking: b, viewHref, returnTo }: { booking: BookingListI
             <h3 className="payment-title">
               {b.service}
               {b.status === "pending" && <span className="new-badge">NEW</span>}
+              {b.requestedDate && <span className="new-badge">RESCHEDULE</span>}
               {b.source === "legacy" && <span className="pill legacy">Legacy</span>}
             </h3>
             <p className="payment-user">
@@ -273,6 +286,13 @@ function BookingCard({ booking: b, viewHref, returnTo }: { booking: BookingListI
       </div>
       <div className="payment-actions">
         <div className={`status ${STATUS_CLASS[b.status]}`}>{STATUS_LABEL[b.status]}</div>
+        {b.requestedDate && (
+          <div className="reschedule-request">
+            <strong>Requested schedule:</strong>{" "}
+            {formatDateLong(toIsoDate(b.requestedDate))}
+            {hasClockTime(b.requestedTime) ? ` at ${formatTime12h(b.requestedTime)}` : ""}
+          </div>
+        )}
         <Link className="action-button view-button" href={viewHref} scroll={false}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M1 12C1 12 5 4 12 4C19 4 23 12 23 12C23 12 19 20 12 20C5 20 1 12 1 12Z" />
@@ -282,8 +302,38 @@ function BookingCard({ booking: b, viewHref, returnTo }: { booking: BookingListI
         </Link>
         {(b.status === "pending" || b.status === "confirmed") && (
           <div className="action-row">
-            {b.status === "pending" && <StatusButton bookingId={b.id} reference={b.reference} action="confirm" returnTo={returnTo} />}
-            <StatusButton bookingId={b.id} reference={b.reference} action="cancel" returnTo={returnTo} />
+            {b.requestedDate && (
+              <>
+                <form action={reviewBookingRescheduleAction}>
+                  <input type="hidden" name="bookingId" value={b.id} />
+                  <input type="hidden" name="returnTo" value={returnTo} />
+                  <input type="hidden" name="decision" value="approve" />
+                  <button type="submit" className="action-button approve-button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M5 12l4 4L19 6" />
+                    </svg>
+                    Confirm Reschedule
+                  </button>
+                </form>
+                <form action={reviewBookingRescheduleAction}>
+                  <input type="hidden" name="bookingId" value={b.id} />
+                  <input type="hidden" name="returnTo" value={returnTo} />
+                  <input type="hidden" name="decision" value="reject" />
+                  <button type="submit" className="action-button reject-button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                    Reject Reschedule
+                  </button>
+                </form>
+              </>
+            )}
+            {!b.requestedDate && b.status === "pending" && (
+              <StatusButton bookingId={b.id} reference={b.reference} action="confirm" returnTo={returnTo} />
+            )}
+            {!b.requestedDate && (b.status === "pending" || b.status === "confirmed") && (
+              <StatusButton bookingId={b.id} reference={b.reference} action="cancel" returnTo={returnTo} />
+            )}
           </div>
         )}
       </div>
@@ -391,10 +441,36 @@ function DetailsModal({ booking: b, closeHref, returnTo }: { booking: BookingDet
         )}
 
         <div className="modal-actions">
-          {b.status === "pending" && (
+          {b.requestedDate && (
+            <>
+              <form action={reviewBookingRescheduleAction}>
+                <input type="hidden" name="bookingId" value={b.id} />
+                <input type="hidden" name="returnTo" value={returnTo} />
+                <input type="hidden" name="decision" value="approve" />
+                <button type="submit" className="action-button approve-button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12l4 4L19 6" />
+                  </svg>
+                  Confirm Reschedule
+                </button>
+              </form>
+              <form action={reviewBookingRescheduleAction}>
+                <input type="hidden" name="bookingId" value={b.id} />
+                <input type="hidden" name="returnTo" value={returnTo} />
+                <input type="hidden" name="decision" value="reject" />
+                <button type="submit" className="action-button reject-button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                  Reject Reschedule
+                </button>
+              </form>
+            </>
+          )}
+          {!b.requestedDate && b.status === "pending" && (
             <StatusButton bookingId={b.id} reference={b.reference} action="confirm" returnTo={returnTo} size="long" />
           )}
-          {(b.status === "pending" || b.status === "confirmed") && (
+          {!b.requestedDate && (b.status === "pending" || b.status === "confirmed") && (
             <StatusButton bookingId={b.id} reference={b.reference} action="cancel" returnTo={returnTo} size="long" />
           )}
           {b.status !== "pending" && b.status !== "confirmed" && (

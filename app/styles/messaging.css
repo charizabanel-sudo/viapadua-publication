@@ -20,6 +20,7 @@
 .chat-bubble.guest strong { color: var(--accent); }
 .chat-bubble p { white-space: pre-wrap; margin: 0; }
 .chat-bubble time { display: block; margin-top: 5px; font-size: 12px; opacity: .78; }
+.chat-bubble ::selection, .chat-bubble *::selection, .chat-compose ::selection, .chat-compose *::selection { background: transparent; color: inherit; }
 .chat-compose { flex-shrink: 0; padding: 16px 18px; border-top: 1px solid #e2e8ef; background: #fff; }
 .chat-compose label { display: block; font-size: 12px; font-weight: 700; color: #46566b; margin: 0 0 5px; }
 .chat-compose input, .chat-compose textarea { display: block; width: 100%; min-width: 0; padding: 9px 11px; margin: 5px 0 0; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: var(--ink); font: 14px/1.5 system-ui, sans-serif; }

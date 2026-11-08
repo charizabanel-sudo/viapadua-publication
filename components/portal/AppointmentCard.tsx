@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cancelUserAppointment, updateUserAppointment } from "@/lib/server/actions/portal";
 import ConfirmSubmitButton from "@/components/portal/ConfirmSubmitButton";
+import { findSlotConflict, formatTime12h } from "@/lib/booking/schedule";
 
 export type AppointmentStatus = "pending" | "confirmed" | "cancelled" | "completed";
 
@@ -13,6 +14,9 @@ export type Appointment = {
   bookingDate: string; // ISO YYYY-MM-DD
   bookingTime: string | null; // "HH:mm"
   status: AppointmentStatus;
+  requestedDate: string | null;
+  requestedTime: string | null;
+  rescheduleRequestedAt: string | null;
 };
 
 function formatTime(t: string) {
@@ -32,41 +36,83 @@ function formatDate(iso: string) {
   });
 }
 
+function serviceIcon(service: string): string {
+  const name = service.toLowerCase();
+  if (name.includes("bapt")) return "fa-water";
+  if (name.includes("wedding") || name.includes("marriage") || name.includes("kasal")) return "fa-ring";
+  if (name.includes("confirmation") || name.includes("kumpil")) return "fa-cross";
+  if (name.includes("funeral") || name.includes("burial")) return "fa-church";
+  if (name.includes("mass") || name.includes("blessing")) return "fa-hands-praying";
+  return "fa-calendar-check";
+}
+
 export default function AppointmentCard({ booking }: { booking: Appointment }) {
   const [editing, setEditing] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(booking.bookingDate);
+  const [selectedTime, setSelectedTime] = useState(booking.bookingTime ?? "");
+  const [reservedTimes, setReservedTimes] = useState<string[]>([]);
+  const [blockedDate, setBlockedDate] = useState(false);
   const actionable = booking.status === "pending" || booking.status === "confirmed";
-  async function handleCancel(form: FormData): Promise<void> {
-    await cancelUserAppointment(form);
-  }
+  useEffect(() => {
+    if (!selectedDate) return;
+    const controller = new AbortController();
+    void fetch(`/api/bookings?date=${encodeURIComponent(selectedDate)}`, { signal: controller.signal })
+      .then((response) => response.ok ? response.json() : null)
+      .then((availability: { blocked?: boolean; reserved?: string[] } | null) => {
+        if (!availability) return;
+        setBlockedDate(Boolean(availability.blocked));
+        setReservedTimes((availability.reserved ?? []).filter((time) => time !== booking.bookingTime));
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [selectedDate, booking.bookingTime]);
+  const conflictTime = selectedTime ? findSlotConflict(selectedTime, reservedTimes) : null;
+  const timeError = conflictTime
+    ? `This time conflicts with an existing appointment at ${formatTime12h(conflictTime)}. Please choose another time.`
+    : "";
   async function handleUpdate(form: FormData): Promise<void> {
     await updateUserAppointment(form);
+  }
+  async function handleCancel(form: FormData): Promise<void> {
+    await cancelUserAppointment(form);
   }
 
   return (
     <article className="portal-card appointment-card">
-      <header className="appointment-header">
+      <div className="appointment-main">
+        <div className="appointment-service-icon" aria-hidden="true">
+          <i className={`fas ${serviceIcon(booking.service)}`} />
+        </div>
         <div>
           <h3 className="appointment-ref">#{booking.reference}</h3>
           <p className="appointment-service">{booking.service}</p>
         </div>
+      </div>
+
+      <div className="appointment-schedule">
+        <div className="schedule-line">
+          <i className="fas fa-calendar-alt" aria-hidden="true" />
+          <span>{formatDate(booking.bookingDate)}</span>
+        </div>
+        <div className="schedule-line">
+          <i className="fas fa-clock" aria-hidden="true" />
+          <span>{booking.bookingTime ? formatTime(booking.bookingTime) : "Not set"}</span>
+        </div>
+      </div>
+
+      {booking.requestedDate && (
+        <div className="form-alert" role="status">
+          Reschedule pending approval: {formatDate(booking.requestedDate)}
+          {booking.requestedTime ? ` at ${formatTime(booking.requestedTime)}` : ""}
+        </div>
+      )}
+
+      <div className="appointment-actions">
         <span className={`status-badge status-${booking.status}`}>
           {booking.status}
         </span>
-      </header>
-
-      <dl className="appointment-info">
-        <div>
-          <dt>Date</dt>
-          <dd>{formatDate(booking.bookingDate)}</dd>
-        </div>
-        <div>
-          <dt>Time</dt>
-          <dd>{booking.bookingTime ? formatTime(booking.bookingTime) : "Not set"}</dd>
-        </div>
-      </dl>
-
-      {actionable && (
-        <div className="appointment-actions">
+        {actionable && (
+          <>
           <button
             type="button"
             className="btn btn-secondary"
@@ -74,9 +120,8 @@ export default function AppointmentCard({ booking }: { booking: Appointment }) {
             aria-expanded={editing}
             aria-controls={`edit-form-${booking.id}`}
           >
-            {editing ? "Close" : "Reschedule"}
+            Reschedule
           </button>
-
           <form action={handleCancel} className="inline-form">
             <input type="hidden" name="bookingId" value={booking.id} />
             <ConfirmSubmitButton
@@ -86,8 +131,9 @@ export default function AppointmentCard({ booking }: { booking: Appointment }) {
               Cancel
             </ConfirmSubmitButton>
           </form>
-        </div>
-      )}
+          </>
+        )}
+      </div>
 
       {actionable && editing && (
         <form
@@ -104,6 +150,7 @@ export default function AppointmentCard({ booking }: { booking: Appointment }) {
               name="bookingDate"
               defaultValue={booking.bookingDate}
               required
+              onChange={(event) => setSelectedDate(event.currentTarget.value)}
             />
           </label>
 
@@ -115,21 +162,20 @@ export default function AppointmentCard({ booking }: { booking: Appointment }) {
               defaultValue={booking.bookingTime ?? ""}
               min="07:00"
               max="17:00"
-              step="1800"
+              step="60"
               required
+              onChange={(event) => {
+                const time = event.currentTarget.value;
+                setSelectedTime(time);
+              }}
             />
           </label>
+          {blockedDate && <p className="appointment-time-error" role="alert">This date is blocked by the parish office. Please choose another date.</p>}
+          {timeError && <p className="appointment-time-error" role="alert">{timeError}</p>}
 
           <div className="form-row">
-            <button type="submit" className="btn btn-primary">
+            <button type="submit" className="btn btn-primary" disabled={blockedDate || Boolean(timeError)}>
               Save changes
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setEditing(false)}
-            >
-              Discard
             </button>
           </div>
         </form>

@@ -47,6 +47,6 @@ export const getCurrentAdmin = cache(async (): Promise<SessionAdmin | null> => {
 /** Server-side authorization guard for admin pages and server actions. */
 export async function requireAdmin(): Promise<SessionAdmin> {
   const admin = await getCurrentAdmin();
-  if (!admin) redirect("/?login=1");
+  if (!admin) redirect("/?signin=1");
   return admin;
 }

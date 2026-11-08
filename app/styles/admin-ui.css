@@ -100,12 +100,12 @@
         display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px;
         font-size: 11px; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; border: 1px solid transparent;
     }
-    .badge-pending { background: #fff4d6; color: #8a5a00; border-color: #f7dc94; }
-    .badge-confirmed { background: #e7f8ee; color: #066b33; border-color: #b7ebcb; }
-    .badge-completed { background: var(--blue-soft); color: #1d4ed8; border-color: #bfd3fb; }
-    .badge-cancelled { background: #ffecec; color: #b42330; border-color: #f3caca; }
-    .badge-paid { background: #e7f8ee; color: #066b33; }
-    .badge-unpaid { background: #f3f4f6; color: #5b6676; }
+    .badge-pending { background: #fff0a6; color: #7a5200; border-color: #f59e0b; box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.08); }
+    .badge-confirmed { background: #22c55e; color: #ffffff; border-color: #15803d; }
+    .badge-completed { background: #38bdf8; color: #075985; border-color: #0284c7; }
+    .badge-cancelled { background: #ef4444; color: #ffffff; border-color: #b91c1c; }
+    .badge-paid { background: #16a34a; color: #ffffff; border-color: #15803d; }
+    .badge-unpaid { background: #fb7185; color: #881337; border-color: #e11d48; }
     .badge-type { background: #eef1f5; color: #3d4a5c; text-transform: capitalize; }
     .badge-type.mass { background: #f1e9ff; color: #6b3fb8; }
     .badge-type.sacrament { background: var(--blue-soft); color: #1d4ed8; }

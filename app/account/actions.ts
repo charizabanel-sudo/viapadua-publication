@@ -11,6 +11,8 @@ import { getDb } from "@/lib/server/db";
 import { getAuthSecret } from "@/lib/server/env";
 import { getClientIp } from "@/lib/server/request";
 import { endUserSession, startUserSession } from "@/lib/server/user-auth";
+import { attemptAdminLogin } from "@/lib/auth/login";
+import { startAdminSession } from "@/lib/server/auth";
 export type AccountState = {
   error?: string;
   field?: "name" | "email" | "password" | "confirm";
@@ -57,24 +59,58 @@ export async function accountAction(
       error: message,
     };
   }
+  let redirectToAdmin = false;
   try {
-    const result = await attemptUserAuth(getDb(), parsed.data, {
-      ip: await getClientIp(),
-      secret: getAuthSecret(),
-      register,
-    });
-    if (!result.ok)
-      return {
-        ...keep,
-        error:
-          "limited" in result && result.limited
-            ? "Too many attempts. Please try again in 15 minutes."
-            : register
-              ? "Registration could not be completed with those details. If you already have an account, sign in or contact the parish office."
+    const db = getDb();
+    const admin = !register
+      ? await db.admin.findUnique({
+          where: { email: parsed.data.email },
+          select: { id: true },
+        })
+      : null;
+    if (!register && admin) {
+      const adminResult = await attemptAdminLogin(db, {
+        email: parsed.data.email,
+        password: parsed.data.password,
+        ip: await getClientIp(),
+        secret: getAuthSecret(),
+      });
+      if (!adminResult.ok) {
+        return {
+          ...keep,
+          error:
+            adminResult.reason === "rate_limited"
+              ? "Too many attempts. Please try again later."
               : "Invalid email or password.",
-      };
-    await startUserSession(result.userId);
+        };
+      }
+      await startAdminSession(adminResult.admin.id);
+      revalidatePath("/", "layout");
+      redirectToAdmin = true;
+    }
+    if (!redirectToAdmin) {
+      const result = await attemptUserAuth(db, parsed.data, {
+        ip: await getClientIp(),
+        secret: getAuthSecret(),
+        register,
+      });
+      if (!result.ok)
+        return {
+          ...keep,
+          error:
+            "limited" in result && result.limited
+              ? "Too many attempts. Please try again in 15 minutes."
+              : register
+                ? "Registration could not be completed with those details. If you already have an account, sign in or contact the parish office."
+                : "Invalid email or password.",
+        };
+      await startUserSession(result.userId);
+    }
   } catch (e) {
+    if (
+      e instanceof Error &&
+      String((e as Error & { digest?: unknown }).digest ?? "").startsWith("NEXT_REDIRECT")
+    ) throw e;
     console.error("[account]", e);
     return {
       ...keep,
@@ -82,6 +118,7 @@ export async function accountAction(
     };
   }
   revalidatePath("/", "layout");
+  if (redirectToAdmin) redirect("/admin");
   redirect(safeReturnPath(form.get("next")) ?? "/portal");
 }
 export async function userLogoutAction() {

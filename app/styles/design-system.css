@@ -25,10 +25,10 @@
 }
 .navbar .nav-container { width: min(1240px, 100%); min-height: 82px; padding: 14px 32px; gap: 24px; }
 .navbar .logo { gap: 12px; flex-shrink: 0; }
-.navbar .logo-box { width: 46px; min-width: 46px; height: 46px; background: var(--logo-accent); color: var(--logo-ink); border-radius: 13px; font-size: 23px; }
+.navbar .logo-box { width: 46px; min-width: 46px; height: 46px; display: grid; place-items: center; background: var(--logo-accent); color: var(--logo-ink); border-radius: 13px; font-size: 23px; }
 .navbar .logo-text h3 { font-size: 23px; line-height: 1.15; color: var(--surface); letter-spacing: -.5px; }
 .navbar .logo-text span { color: var(--parish-gold); font-size: 11px; letter-spacing: .09em; text-transform: uppercase; font-weight: 600; }
-.navbar .nav-buttons { gap: 8px; }
+.navbar .nav-buttons { gap: 8px; margin-left: auto; }
 .navbar .nav-btn { display: inline-flex; align-items: center; justify-content: center; height: auto; min-height: 44px; border-radius: var(--radius-control); background: transparent; color: var(--surface); border: 1px solid rgb(var(--accent-rgb) / 45%); padding: 10px 16px; font-size: 14px; gap: 8px; }
 .navbar .nav-btn:hover { background: var(--brand-hover); border-color: var(--accent); }
 .navbar .btn-signup { background: var(--brand); color: white; border-color: var(--brand); }
@@ -42,7 +42,7 @@
 .vp-admin .dashboard { background: var(--canvas); }
 .vp-admin .sidebar { --scrollbar-track: var(--brand-deep); --scrollbar-thumb: var(--scrollbar-thumb-on-dark); --scrollbar-thumb-hover: var(--accent); width: var(--sidebar-width); min-width: var(--sidebar-width); height: 100dvh; background: linear-gradient(165deg, var(--brand), var(--brand-deep)); }
 .vp-admin .sidebar-logo { flex-shrink: 0; height: 100px; padding: 24px 22px; gap: 12px; }
-.vp-admin .logo-icon { width: 43px; height: 46px; border: 1px solid rgb(255 255 255 / 35%); background: var(--logo-accent); border-radius: 12px; }
+.vp-admin .logo-icon { width: 43px; height: 46px; display: grid; place-items: center; border: 1px solid rgb(255 255 255 / 35%); background: var(--logo-accent); border-radius: 12px; flex-shrink: 0; }
 .vp-admin .logo-icon i { color: var(--logo-ink); font-size: 22px; }
 .vp-admin .logo-text h2 { font-family: var(--font-body); font-size: 23px; font-weight: 700; letter-spacing: -.5px; line-height: 1.15; }
 .vp-admin .logo-text p { font-family: var(--font-body); font-size: 11px; font-weight: 600; color: var(--parish-gold); letter-spacing: .09em; text-transform: uppercase; white-space: normal; line-height: 1.4; }
@@ -82,7 +82,10 @@
 .vp-admin .stat-card .stat-value { font-size: 34px; color: var(--ink); font-weight: 600; letter-spacing: -1px; }
 .vp-admin .stat-card .stat-note { font-size: 11px; color: var(--muted); line-height: 1.5; }
 .vp-admin .grid-2 { grid-template-columns: minmax(0, 1fr) minmax(275px, .5fr); gap: 24px; }
-.vp-admin .card, .vp-admin .payments-container, .vp-admin .payment-card, .vp-admin .record-card, .vp-admin .event-card { background: var(--surface); border-color: var(--line); border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
+.vp-admin .card, .vp-admin .payment-card, .vp-admin .record-card, .vp-admin .event-card { background: #ffffff; border: 1px solid #e4e7ec; border-radius: 14px; box-shadow: 0 2px 10px rgba(15, 23, 42, 0.055); }
+.vp-admin .payment-card:nth-of-type(odd), .vp-admin .record-card:nth-of-type(odd) { background: #ffffff; border-color: #e4e7ec; }
+.vp-admin .payment-card:nth-of-type(even), .vp-admin .record-card:nth-of-type(even) { background: #f7faff; border-color: #e4e7ec; }
+.vp-admin .payments-container { background: #ffffff; border: 1px solid #e4e7ec; border-radius: var(--radius-card); box-shadow: 0 2px 10px rgba(15, 23, 42, 0.055); }
 .vp-admin .card { padding: 24px; }
 .vp-admin .card-head h2 { font-size: 17px; font-weight: 600; letter-spacing: -.3px; }
 .vp-admin .card-head .sub, .vp-admin .card-link { font-size: 12px; }
@@ -140,7 +143,7 @@
 .vp-admin .payment-details { gap: 12px 18px; }
 .vp-admin .detail-item { font-size: 13px; align-items: flex-start; overflow-wrap: anywhere; }
 .vp-admin .detail-icon { margin-top: 3px; }
-.vp-admin .payment-info { background: var(--surface-soft); gap: 16px; }
+.vp-admin .payment-info { background: #eaf6ff; border: 1px solid #c8e6fa; gap: 16px; }
 .vp-admin .payment-info-text { font-size: 13px; overflow-wrap: anywhere; }
 .vp-admin .payment-actions { gap: 10px; padding-left: 20px; border-left: 1px solid var(--line); }
 .vp-admin .status { width: fit-content; max-width: 100%; height: auto; min-height: 30px; padding: 5px 12px; align-self: flex-end; border-radius: 30px; }
@@ -295,9 +298,9 @@ html.vp-splash-on .vp-splash { background: radial-gradient(ellipse at center, va
   .navbar .logo-text span { display: block; }
   .navbar .nav-buttons { width: auto; margin-left: auto; gap: 6px; }
   .navbar .nav-btn { padding: 9px 10px; font-size: 12px; }
-  .navbar .logo { flex: 1 1 100%; }
+  .navbar .logo { flex: 0 1 auto; min-width: 0; }
   .navbar .logo-box { width: 38px; height: 38px; min-width: 38px; font-size: 20px; }
-  .navbar .nav-buttons { justify-content: flex-start; width: 100%; }
+  .navbar .nav-buttons { justify-content: flex-end; width: auto; }
   .navbar .admin-menu { margin-left: auto; }
   .vp-admin .main-content { padding: 22px 12px 90px; }
   .vp-admin .stats-grid { grid-template-columns: minmax(0, 1fr); }

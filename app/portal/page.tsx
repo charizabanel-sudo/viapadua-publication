@@ -15,19 +15,23 @@ import ServicesBooking from "@/components/services/ServicesBooking";
 import { ServicesLink } from "@/components/public/PublicOverlayProvider";
 import { getGcashPayee } from "@/lib/server/payment";
 import AppointmentCard, { type Appointment } from "@/components/portal/AppointmentCard";
+import AppointmentStatusFilter from "@/components/portal/AppointmentStatusFilter";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 30;
 const docHref = (id: string) => `/api/documents/${id}`;
 
-export default async function PortalPage({ searchParams }: { searchParams: Promise<{ tab?: string; month?: string; page?: string }> }) {
+export default async function PortalPage({ searchParams }: { searchParams: Promise<{ tab?: string; month?: string; page?: string; status?: string }> }) {
   const params = await searchParams;
   const tab: PortalTab = isPortalTab(params.tab) ? params.tab : "bookings";
   const month = normalizeMonth(params.month);
   const user = await requireUser(`/portal?tab=${tab}${tab === "calendar" && params.month ? `&month=${month}` : ""}`);
   const db = getDb();
   const page = Math.max(1, Math.min(10000, Number(params.page) || 1));
+  const statusFilter = ["all", "pending", "confirmed", "cancelled", "completed"].includes(params.status ?? "")
+    ? params.status ?? "all"
+    : "all";
   const [bookings, requests, conversations, calendar] = await Promise.all([
     tab === "bookings" || tab === "receipts" ? db.booking.findMany({
       where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: PAGE_SIZE, skip: (page - 1) * PAGE_SIZE,
@@ -42,14 +46,18 @@ export default async function PortalPage({ searchParams }: { searchParams: Promi
     }) : [],
     tab === "calendar" ? getPortalCalendar(db, user.id, month) : null,
   ]);
-  const appointments: Appointment[] = bookings.map((b) => ({
+  const allAppointments: Appointment[] = bookings.map((b) => ({
     id: b.id,
     reference: b.reference,
     service: b.service,
     bookingDate: b.bookingDate.toISOString().slice(0, 10),
     bookingTime: b.bookingTime,
     status: b.status as Appointment["status"],
+    requestedDate: b.requestedDate?.toISOString().slice(0, 10) ?? null,
+    requestedTime: b.requestedTime,
+    rescheduleRequestedAt: b.rescheduleRequestedAt?.toISOString() ?? null,
   }));
+  const appointments = statusFilter === "all" ? allAppointments : allAppointments.filter((appointment) => appointment.status === statusFilter);
   const pager = (
     <div className="portal-pager">
       {page > 1 && <Link href={`/portal?tab=${tab}&page=${page - 1}`}>Newer appointments</Link>}
@@ -78,6 +86,7 @@ export default async function PortalPage({ searchParams }: { searchParams: Promi
         </header>
         {tab === "bookings" && (
           <>
+          <AppointmentStatusFilter status={statusFilter} />
           <div className="portal-grid">
             {appointments.map((appointment) => (
               <AppointmentCard key={appointment.id} booking={appointment} />

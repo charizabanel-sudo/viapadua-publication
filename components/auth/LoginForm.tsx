@@ -10,7 +10,7 @@ type Props = {
   emailRef?: Ref<HTMLInputElement>;
 };
 
-/** Admin sign-in form. Rendered in the homepage admin login card. */
+/** Shared sign-in form. The server routes users and administrators by account type. */
 export default function LoginForm({ idPrefix = "", emailRef }: Props) {
   const [state, formAction, pending] = useActionState<LoginState, FormData>(loginAction, {});
   const [showPassword, setShowPassword] = useState(false);

@@ -89,10 +89,13 @@
     .record-list { display: flex; flex-direction: column; gap: 14px; }
     .record-card {
         display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 20px;
-        padding: 20px; border: 1px solid #e1e4e7; border-radius: 12px; background: #ffffff;
-        transition: box-shadow 0.18s ease;
+        padding: 12px 16px; border: 1px solid #e4e7ec; border-radius: 14px; background: #ffffff;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.055);
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
     }
-    .record-card:hover { box-shadow: 0 6px 18px rgba(30, 50, 80, 0.08); }
+    .record-card:hover { border-color: #cbd5e1; box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08); transform: translateY(-1px); }
+    .record-card:nth-of-type(odd) { background: #ffffff; border-color: #e4e7ec; }
+    .record-card:nth-of-type(even) { background: #f7faff; border-color: #e4e7ec; }
     .record-title-row { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
     .record-icon {
         width: 44px; height: 44px; flex-shrink: 0; border-radius: 10px; background: var(--blue-soft); color: var(--accent-ink);
@@ -102,13 +105,19 @@
     .record-id { font-size: 12px; color: var(--muted); word-break: break-word; }
     .record-info {
         display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 16px;
-        background: var(--canvas); border-radius: 10px; padding: 12px 14px;
+        background: rgba(255,255,255,0.72); border: 1px solid #b7d9ef; border-radius: 6px; padding: 10px 12px;
     }
     .record-info dt { font-size: 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
     .record-info dd { font-size: 16px; color: #3a4757; margin-top: 2px; }
     .record-actions { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
     .record-actions .btn { width: 100%; }
     .badge-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-bottom: 4px; }
+    .btn-receipt { background: #6b7280; color: #ffffff; border: 2px solid #374151; font-weight: 800; }
+    .btn-receipt:hover { background: #9ca3af; color: #ffffff; border-color: #374151; }
+    .record-card .private-documents { text-align: center; padding: 8px 12px; margin-top: 0; }
+    .record-card .private-documents summary { width: fit-content; margin: 0 auto 8px; cursor: pointer; }
+    .record-card .private-documents p { margin: 0; }
+    .record-card .private-documents .file-download { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
 
     /* ===== Reports ===== */
     .mini-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }

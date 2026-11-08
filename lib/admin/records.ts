@@ -44,6 +44,8 @@ const recordSelect = {
   details: true,
   source: true,
   createdAt: true,
+  updatedAt: true,
+  rescheduleRequestedAt: true,
 } satisfies Prisma.BookingSelect;
 
 export type RecordItem = Prisma.BookingGetPayload<{ select: typeof recordSelect }>;
@@ -72,13 +74,21 @@ export async function listRecords(db: Db, opts: { q?: string; status?: BookingSt
   const total = await db.booking.count({ where });
   const pages = Math.max(1, Math.ceil(total / RECORDS_PAGE_SIZE));
   const page = Math.min(Math.max(1, opts.page ?? 1), pages);
-  const items = await db.booking.findMany({
+  const found = await db.booking.findMany({
     where,
     select: recordSelect,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    skip: (page - 1) * RECORDS_PAGE_SIZE,
-    take: RECORDS_PAGE_SIZE,
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    take: 2000,
   });
+  found.sort((a, b) => {
+    if (a.status === "cancelled" && b.status !== "cancelled") return 1;
+    if (a.status !== "cancelled" && b.status === "cancelled") return -1;
+    const aPriority = a.status === "confirmed" ? 2 : a.rescheduleRequestedAt ? 3 : a.status === "pending" ? 1 : 0;
+    const bPriority = b.status === "confirmed" ? 2 : b.rescheduleRequestedAt ? 3 : b.status === "pending" ? 1 : 0;
+    if (aPriority !== bPriority) return bPriority - aPriority;
+    return b.updatedAt.getTime() - a.updatedAt.getTime() || b.id - a.id;
+  });
+  const items = found.slice((page - 1) * RECORDS_PAGE_SIZE, page * RECORDS_PAGE_SIZE);
   return { items, total, page, pages };
 }
 

@@ -1,6 +1,5 @@
 import AccountLink from "@/components/auth/AccountLink";
 import Link from "next/link";
-import AdminLoginMenu from "@/components/home/AdminLoginMenu";
 import NavbarShell from "@/components/home/NavbarShell";
 import { getCurrentUser } from "@/lib/server/user-auth";
 import { SITE } from "@/lib/site";
@@ -21,7 +20,6 @@ export default async function SiteHeader() {
         </Link>
         <nav className="nav-buttons" aria-label="Main">
           <AccountLink signedIn={signedIn} />
-          <AdminLoginMenu userSignInAvailable={!signedIn} />
         </nav>
       </div>
     </NavbarShell>

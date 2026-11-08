@@ -20,6 +20,9 @@ const listSelect = {
   service: true,
   bookingDate: true,
   bookingTime: true,
+  requestedDate: true,
+  requestedTime: true,
+  rescheduleRequestedAt: true,
   status: true,
   fee: true,
   paymentMethod: true,
@@ -27,11 +30,12 @@ const listSelect = {
   gcashReference: true,
   source: true,
   createdAt: true,
+  updatedAt: true,
 } satisfies Prisma.BookingSelect;
 
 export type BookingListItem = Prisma.BookingGetPayload<{ select: typeof listSelect }>;
 
-/** Admin list: pending first (enum order), newest first. Heavy columns (receipts, JSON) are excluded. */
+/** Admin list: newest bookings and reschedule requests first. Heavy columns (receipts, JSON) are excluded. */
 export async function listBookings(db: Db, filters: BookingFilters): Promise<{ items: BookingListItem[]; total: number; page: number; pages: number }> {
   const q = filters.q?.trim().slice(0, 100);
   const where: Prisma.BookingWhereInput = {
@@ -53,13 +57,23 @@ export async function listBookings(db: Db, filters: BookingFilters): Promise<{ i
   const total = await db.booking.count({ where });
   const pages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
   const page = Math.min(Math.max(1, filters.page ?? 1), pages);
-  const items = await db.booking.findMany({
+  const found = await db.booking.findMany({
     where,
     select: listSelect,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    skip: (page - 1) * ADMIN_PAGE_SIZE,
-    take: ADMIN_PAGE_SIZE,
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    take: 2000,
   });
+  found.sort((a, b) => {
+    if (a.status === "cancelled" && b.status !== "cancelled") return 1;
+    if (a.status !== "cancelled" && b.status === "cancelled") return -1;
+    const aReschedule = a.rescheduleRequestedAt?.getTime() ?? 0;
+    const bReschedule = b.rescheduleRequestedAt?.getTime() ?? 0;
+    if (aReschedule !== bReschedule) return bReschedule - aReschedule;
+    if (a.status === "pending" && b.status !== "pending") return -1;
+    if (b.status === "pending" && a.status !== "pending") return 1;
+    return b.updatedAt.getTime() - a.updatedAt.getTime() || b.id - a.id;
+  });
+  const items = found.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE);
   return { items, total, page, pages };
 }
 

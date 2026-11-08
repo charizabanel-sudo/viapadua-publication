@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { changeBookingStatus, isStatusAction } from "@/lib/booking/status";
 import { endAdminSession, requireAdmin } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
+import { findSlotConflict, parseIsoDate } from "@/lib/booking/schedule";
 
 /** Only allow redirects back into the bookings page (prevents open redirects). */
 function safeReturnTo(value: FormDataEntryValue | null): string {
@@ -35,6 +36,72 @@ export async function updateBookingStatusAction(formData: FormData): Promise<voi
 
   if (result.ok) redirect(withNotice(returnTo, `${result.to}:${result.reference}`));
   redirect(withNotice(returnTo, result.reason === "not_found" ? "not_found" : `stale:${result.reference}`));
+}
+
+export async function reviewBookingRescheduleAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  const returnTo = safeReturnTo(formData.get("returnTo"));
+  const bookingId = Number(formData.get("bookingId"));
+  const decision = formData.get("decision");
+  if (!Number.isInteger(bookingId) || bookingId <= 0 || (decision !== "approve" && decision !== "reject")) {
+    redirect(withNotice(returnTo, "invalid"));
+  }
+
+  const db = getDb();
+  const result = await db.$transaction(async (tx) => {
+      const booking = await tx.booking.findUnique({
+        where: { id: bookingId },
+        select: {
+          id: true, reference: true, bookingDate: true, bookingTime: true,
+          requestedDate: true, requestedTime: true, status: true,
+        },
+      });
+      if (!booking || !booking.requestedDate || !booking.requestedTime || !["pending", "confirmed"].includes(booking.status)) {
+        return { ok: false, reason: "not_found" as const };
+      }
+      const oldDate = booking.bookingDate.toISOString().slice(0, 10);
+      const oldTime = booking.bookingTime;
+      const newDate = booking.requestedDate.toISOString().slice(0, 10);
+      const newTime = booking.requestedTime;
+      if (decision === "approve") {
+        if (!parseIsoDate(newDate)) return { ok: false, reason: "not_found" as const };
+        const conflicts = await tx.booking.findMany({
+          where: {
+            id: { not: booking.id },
+            bookingDate: booking.requestedDate,
+            status: { in: ["pending", "confirmed"] },
+          },
+          select: { bookingTime: true },
+        });
+        if (findSlotConflict(newTime, conflicts.map((item) => item.bookingTime))) {
+          return { ok: false, reason: "not_found" as const };
+        }
+      }
+
+      await tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          ...(decision === "approve" ? { bookingDate: booking.requestedDate, bookingTime: newTime, updatedAt: new Date() } : {}),
+          requestedDate: null,
+          requestedTime: null,
+          rescheduleRequestedAt: null,
+        },
+      });
+      await tx.portalAudit.create({
+        data: {
+          action: decision === "approve" ? "reschedule_approved" : "reschedule_rejected",
+          targetId: String(booking.id),
+          adminId: admin.id,
+          detail: { reference: booking.reference, fromDate: oldDate, fromTime: oldTime, toDate: newDate, toTime: newTime },
+        },
+      });
+      return { ok: true, reference: booking.reference };
+  });
+
+  revalidatePath("/admin/bookings");
+  revalidatePath("/admin/calendar");
+  revalidatePath("/portal");
+  redirect(withNotice(returnTo, result.ok ? `${decision === "approve" ? "rescheduled" : "reschedule_rejected"}:${result.reference}` : "not_found"));
 }
 
 export async function logoutAction(): Promise<void> {

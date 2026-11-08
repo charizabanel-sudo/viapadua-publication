@@ -1,5 +1,7 @@
 import { isSameOriginMutation } from "@/lib/messaging/validation";
 import { submitBookingForm, type BookingResult } from "@/lib/booking/submit";
+import { getDb } from "@/lib/server/db";
+import { parseIsoDate } from "@/lib/booking/schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -23,4 +25,24 @@ export async function POST(request: Request) {
   }
   const result = await submitBookingForm(form);
   return Response.json(result, { headers: NO_STORE });
+}
+
+export async function GET(request: Request) {
+  const dateParam = new URL(request.url).searchParams.get("date");
+  const date = dateParam ? parseIsoDate(dateParam) : null;
+  if (!date) return Response.json({ blocked: false, reserved: [] });
+
+  const db = getDb();
+  const [blocked, bookings] = await Promise.all([
+    db.blockedDate.findUnique({ where: { date }, select: { id: true } }),
+    db.booking.findMany({
+      where: { bookingDate: date, status: { in: ["pending", "confirmed"] } },
+      select: { bookingTime: true },
+    }),
+  ]);
+
+  return Response.json({
+    blocked: Boolean(blocked),
+    reserved: bookings.map((booking) => booking.bookingTime),
+  }, { headers: NO_STORE });
 }
