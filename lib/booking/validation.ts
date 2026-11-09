@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getBookableService, type BookableService, type ServiceField } from "./catalog";
+import { getBookableService, getServiceFee, type BookableService, type ServiceField } from "./catalog";
 import { checkBookingDate, isValidTime, isWithinServiceHours, EARLIEST_TIME, LATEST_TIME, parseIsoDate, todayInParish, formatTime12h } from "./schedule";
 
 export type PaymentMethodInput = "gcash" | "church";
@@ -26,6 +26,8 @@ export const MAX_SPECIAL_REQUEST_LENGTH = 5000;
 export function normalizePhone(value: string): string | null {
   const compact = value.replace(/[\s\-().]/g, "");
   if (/^09\d{9}$/.test(compact)) return compact;
+  if (/^9\d{9}$/.test(compact)) return `0${compact}`;
+  if (/^639\d{9}$/.test(compact)) return `0${compact.slice(2)}`;
   if (/^\+?639\d{9}$/.test(compact)) return `0${compact.replace(/^\+?63/, "")}`;
   if (/^\+\d{8,15}$/.test(compact)) return compact;
   return null;
@@ -133,7 +135,11 @@ function collectErrors(error: z.ZodError, into: FieldErrors) {
 }
 
 /** Validates a raw booking submission. Fee and service name always come from the catalog, never the client. */
-export function validateBookingInput(raw: Record<string, string>, now: Date = new Date()): ValidationResult {
+export function validateBookingInput(
+  raw: Record<string, string>,
+  now: Date = new Date(),
+  options: { requireContact?: boolean } = {},
+): ValidationResult {
   const fieldErrors: FieldErrors = {};
   const get = (k: string) => (typeof raw[k] === "string" ? raw[k] : "");
 
@@ -154,7 +160,7 @@ export function validateBookingInput(raw: Record<string, string>, now: Date = ne
   if (!base.success) collectErrors(base.error, fieldErrors);
   if (get("bookContact").trim() && !normalizePhone(get("bookContact"))) {
     fieldErrors.bookContact = "Enter a valid mobile number (e.g. 0917 123 4567).";
-  } else if (!get("bookContact").trim()) {
+  } else if (!get("bookContact").trim() && options.requireContact !== false) {
     fieldErrors.bookContact = "Mobile number is required.";
   }
 
@@ -174,20 +180,24 @@ export function validateBookingInput(raw: Record<string, string>, now: Date = ne
 
   const today = todayInParish(now);
   const details: Record<string, string> = {};
-  if (service.code === "baptism" || service.code === "wedding") {
+  let bookingFee = service.fee;
+  if (service.code === "baptism") {
     const serviceType = get("serviceType");
     if (serviceType === "ordinary" || serviceType === "special") {
       details.serviceType = serviceType === "special" ? "Special" : "Ordinary";
       if (serviceType === "special") {
-        if (!base.success || !base.data.specialRequest) {
-          fieldErrors.specialRequest = "Special request is required for special appointments.";
-        } else {
-          details.specialRequest = base.data.specialRequest;
-        }
+        bookingFee = getServiceFee(service, "special");
+        details.specialRequest = base.success && base.data.specialRequest
+          ? `Includes candle. ${base.data.specialRequest}`
+          : "Includes candle";
+        details.specialFee = String(bookingFee - service.fee);
       }
     } else {
       fieldErrors.serviceType = "Choose an ordinary or special appointment.";
     }
+  }
+  if (service.fee === 0 && get("payment_method") === "gcash") {
+    fieldErrors.payment_method = "Blessing donations are arranged at the parish office.";
   }
   for (const row of service.fields) {
     for (const field of row) {
@@ -222,7 +232,7 @@ export function validateBookingInput(raw: Record<string, string>, now: Date = ne
   return {
     ok: true,
     data: {
-      service,
+      service: bookingFee === service.fee ? service : { ...service, fee: bookingFee },
       requester: { name: base.data.bookFullName, email: base.data.bookEmail, phone: base.data.bookContact },
       date: base.data.bookDate,
       time: base.data.bookTime,

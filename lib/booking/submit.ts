@@ -37,7 +37,7 @@ export async function submitBookingForm(formData: FormData): Promise<BookingResu
     if (user) {
       raw.bookFullName = user.fullname;
       raw.bookEmail = user.email;
-      raw.bookContact = user.phone ?? "";
+      raw.bookContact = user.phone?.trim() || raw.bookContact || "";
     }
     // A replay of an already-saved submission succeeds even if rules or limits would now refuse it.
     if (clientRequestId) {
@@ -45,7 +45,7 @@ export async function submitBookingForm(formData: FormData): Promise<BookingResu
       if (replay && replay !== "foreign") return { status: "success", booking: replay };
     }
 
-    const parsed = validateBookingInput(raw);
+    const parsed = validateBookingInput(raw, new Date(), { requireContact: !user });
     if (!parsed.ok) return { status: "error", formError: parsed.formError, fieldErrors: parsed.fieldErrors };
 
     const ipBucket = bucketKey(getAuthSecret(), "booking:ip", await getClientIp());

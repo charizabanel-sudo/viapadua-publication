@@ -1,17 +1,7 @@
 "use client";
-import FileDownload from "@/components/files/FileDownload";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { certificateTypes } from "@/lib/certificates/requests";
 import { newRequestId, statusMessage, submitJson, UNCERTAIN_MESSAGE } from "@/lib/client/submit";
-type Progress = {
-  id: string;
-  reference: string;
-  status: string;
-  note: string | null;
-  type: string;
-  fee: number;
-  documents: { id: string }[];
-};
 export default function CertificateRequestForm({
   initialType,
   initialRecipientName = "",
@@ -35,7 +25,6 @@ export default function CertificateRequestForm({
     [saved, setSaved] = useState<{ reference: string; status: string } | null>(null);
   const busyRef = useRef(false);
   const confirmRef = useRef<HTMLDivElement>(null);
-  const [rows, setRows] = useState<Progress[]>([]);
   const requestId = useRef("");
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -43,36 +32,6 @@ export default function CertificateRequestForm({
     const frame = requestAnimationFrame(() => headingRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [visible]);
-  useEffect(() => {
-    if (!visible) return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    const load = async () => {
-      try {
-        const r = await fetch("/api/certificate-requests", {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        if (r.ok) setRows((await r.json()).requests);
-      } catch {
-        /* Pending requests remain visible on the next refresh. */
-      }
-      if (!controller.signal.aborted) timer = setTimeout(load, 15000);
-    };
-    void load();
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, [visible]);
-  async function refreshRows() {
-    try {
-      const r = await fetch("/api/certificate-requests", { cache: "no-store" });
-      if (r.ok) setRows((await r.json()).requests);
-    } catch {
-      /* The list refreshes again on its next poll. */
-    }
-  }
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (busyRef.current) return;
@@ -104,7 +63,6 @@ export default function CertificateRequestForm({
       formElement.reset();
       onDirtyChange(false);
       requestAnimationFrame(() => confirmRef.current?.focus());
-      void refreshRows();
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -210,31 +168,6 @@ export default function CertificateRequestForm({
           </div>
         )}
       </div>
-      <h3>Requested Certificates</h3>
-      <p>
-        Guest requests are available in this browser for 30 days. An account
-        keeps future requests together.
-      </p>
-      {rows.map((r) => (
-        <article className="portal-card" key={r.id}>
-          <strong>
-            {r.reference} · {r.type}
-          </strong>
-          <p>
-            Status: {r.status} · Fee: ₱{r.fee}
-          </p>
-          {r.note && <p>{r.note}</p>}
-          {r.documents.map((d) => (
-            <FileDownload
-              key={d.id}
-              href={`/api/documents/${d.id}`}
-              previewHref={`/api/documents/${d.id}?preview=1`}
-            >
-              Download released PDF
-            </FileDownload>
-          ))}
-        </article>
-      ))}
     </section>
   );
 }

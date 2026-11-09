@@ -22,6 +22,7 @@ import {
   SERVICE_CARDS,
   formatPeso,
   getBookableService,
+  getServiceFee,
   type BookableService,
   type ServiceField,
 } from "@/lib/booking/catalog";
@@ -71,6 +72,9 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
   } = usePublicOverlay();
   const service: BookableService | null =
     getBookableService(servicesState.service) ?? null;
+  const serviceCard = service
+    ? SERVICE_CARDS.find((card) => card.serviceCodes.includes(service.code))
+    : undefined;
   const [blessingChoice, setBlessingChoice] = useState("");
   const [blessingError, setBlessingError] = useState(false);
   const [payment, setPayment] = useState<Payment>("");
@@ -185,7 +189,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
       )
     )
       return;
-    setPayment("");
+    setPayment(selected.fee === 0 ? "church" : "");
     setServiceType(null);
     setDate("");
     setErrors({});
@@ -267,10 +271,47 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
         }
         const fieldErrors = result?.fieldErrors ?? {};
         setErrors(fieldErrors);
-        setFormError(result?.formError ?? (result ? "Please check your appointment details." : statusMessage(outcome.status)));
         const keys = Object.keys(fieldErrors);
         const stayOnGcash = fromGcash && keys.every((k) => GCASH_FIELDS.includes(k));
         setStep(stayOnGcash ? "gcash" : "form");
+        const messages = Object.entries(fieldErrors).map(([field, message]) => {
+          const label =
+            field === "serviceType"
+              ? "Request type"
+              : field === "payment_method"
+                ? "Payment method"
+                : field === "bookContact"
+                  ? "Contact number"
+                  : field === "bookDate"
+                    ? "Preferred date"
+                    : field === "bookTime"
+                      ? "Preferred time"
+                      : field === "bookFullName"
+                        ? "Full name"
+                        : field === "bookEmail"
+                          ? "Email address"
+                          : service?.fields.flat().find((item) => item.name === field)?.label ?? field;
+          return `${label}: ${message}`;
+        });
+        setFormError(
+          result?.formError === "Please correct the highlighted fields." && messages.length
+            ? `Please check: ${messages.join(" ")}`
+            : result?.formError ??
+                (result ? "Please check your appointment details." : statusMessage(outcome.status)),
+        );
+        if (keys.length) {
+          requestAnimationFrame(() => {
+            const first = keys[0];
+            const target =
+              first === "serviceType"
+                ? document.querySelector<HTMLElement>(".service-type-option")
+                : first === "payment_method"
+                  ? document.querySelector<HTMLElement>(".payment-options button")
+                  : document.getElementById(`f-${first}`);
+            target?.scrollIntoView({ block: "center", behavior: "smooth" });
+            target?.focus({ preventScroll: true });
+          });
+        }
       } finally {
         sendingRef.current = false;
       }
@@ -334,7 +375,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
 
   const today = todayInParish();
   const dateBlocked = date !== "" && (isBlockedWeekday(date) || adminBlockedDate);
-  const hasServiceTypeChoice = service?.code === "baptism" || service?.code === "wedding";
+  const hasServiceTypeChoice = service?.code === "baptism";
 
   return (
     <PublicDialog
@@ -491,7 +532,10 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                       </ul>
                     </div>
                     <div className="fee-label">Service Fee</div>
-                    <div className="fee-amount">{formatPeso(card.fee)}</div>
+                    <div className={`fee-amount${card.priceLabel ? " fee-amount-details" : ""}`}>
+                      {card.priceLabel ?? formatPeso(card.fee)}
+                    </div>
+                    {card.pricingNote && <p className="fee-note">{card.pricingNote}</p>}
                     <div className="payment-info">GCash or pay at the church</div>
                     <div className="button-group">
                       <button
@@ -627,9 +671,17 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                 tabIndex={-1}
               >
                 Book {service.name}{" "}
-                <span className="booking-fee">{formatPeso(service.fee)}</span>
+                <span className="booking-fee">
+                  {service.feeLabel ??
+                    (service.code === "baptism" && !serviceType
+                      ? "Choose an appointment type"
+                      : formatPeso(getServiceFee(service, serviceType)))}
+                </span>
               </h3>
               <p className="modal-subtitle">Please fill in the details below</p>
+              {serviceCard?.pricingNote && (
+                <p className="fee-note">{serviceCard.pricingNote}</p>
+              )}
 
               {formError && step === "form" && (
                 <div className="form-error" role="alert">
@@ -663,7 +715,7 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                           clearError("serviceType");
                         }}
                       >
-                        Ordinary {service.name}
+                        Regular Baptism · {formatPeso(getServiceFee(service, "ordinary"))}
                       </button>
                       <button
                         type="button"
@@ -675,7 +727,8 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                           clearError("serviceType");
                         }}
                       >
-                        <i className="fas fa-star" aria-hidden="true" /> Special {service.name}
+                        <i className="fas fa-star" aria-hidden="true" /> Special Baptism ·{" "}
+                        {formatPeso(getServiceFee(service, "special"))} (includes candle)
                       </button>
                     </div>
                     {errors.serviceType && (
@@ -686,35 +739,29 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                   </div>
                 )}
                 {serviceType === "special" && (
-                  <div className="special-request-panel">
-                    <div className="special-request-heading">
-                      <i className="fas fa-star" aria-hidden="true" />
-                      <label htmlFor="f-specialRequest">
-                        Special Request <span className="req">*</span>
-                      </label>
-                    </div>
-                    <textarea
-                      id="f-specialRequest"
-                      name="specialRequest"
-                      required
-                      placeholder="Please specify your special request (e.g. different date, special occasion, etc.)..."
-                      aria-invalid={Boolean(errors.specialRequest)}
-                      onChange={() => clearError("specialRequest")}
-                    />
-                    <p className="special-request-fee-note">
-                      The parish will review your request and set any additional fee. Your receipt will show the updated total.
-                    </p>
-                    {errors.specialRequest && (
-                      <div className="form-hint warn" role="alert">{errors.specialRequest}</div>
-                    )}
-                  </div>
+                  <p className="special-request-fee-note">
+                    The special Baptism package includes a candle. The ₱1,650 package price is fixed.
+                  </p>
                 )}
                 <>
                 {signedIn && account && (
                   <>
                     <input type="hidden" name="bookFullName" value={account.fullname} />
                     <input type="hidden" name="bookEmail" value={account.email} />
-                    <input type="hidden" name="bookContact" value={account.phone ?? ""} />
+                    {account.phone?.trim() ? (
+                      <input type="hidden" name="bookContact" value={account.phone} />
+                    ) : (
+                      <TextInput
+                        name="bookContact"
+                        label="Contact Number"
+                        type="tel"
+                        required={!signedIn || Boolean(account?.phone?.trim())}
+                        placeholder="09XX XXX XXXX"
+                        autoComplete="tel"
+                        errors={errors}
+                        onEdit={clearError}
+                      />
+                    )}
                   </>
                 )}
                     <div className="hp-field" aria-hidden="true">
@@ -894,18 +941,20 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                       role="radiogroup"
                       aria-labelledby="paymentTitle"
                     >
-                      <PaymentOption
-                        selected={payment === "gcash"}
-                        onSelect={() => {
-                          setPayment("gcash");
-                          setDirty(true);
-                          clearError("payment_method");
-                        }}
-                        icon="fa-mobile-alt"
-                        variant="gcash"
-                        title="GCash"
-                        description="Send via GCash, then enter your reference number"
-                      />
+                      {service.fee > 0 && (
+                        <PaymentOption
+                          selected={payment === "gcash"}
+                          onSelect={() => {
+                            setPayment("gcash");
+                            setDirty(true);
+                            clearError("payment_method");
+                          }}
+                          icon="fa-mobile-alt"
+                          variant="gcash"
+                          title="GCash"
+                          description="Send via GCash, then enter your reference number"
+                        />
+                      )}
                       <PaymentOption
                         selected={payment === "church"}
                         onSelect={() => {
@@ -974,11 +1023,13 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                     "Use the masked details on the original QR; confirm with the parish office"}
                 </strong>
                 <br />
-                {serviceType === "special" ? "Base amount:" : "Amount to pay:"}{" "}
-                <span className="amount-highlight">{formatPeso(service.fee)}</span>
+                Amount to pay:{" "}
+                <span className="amount-highlight">
+                  {formatPeso(getServiceFee(service, serviceType))}
+                </span>
                 {serviceType === "special" && (
                   <p className="special-request-fee-note">
-                    This is the base fee. The parish will assess any special-request fee and include it in the updated receipt.
+                    The special Baptism package includes a candle.
                   </p>
                 )}
               </div>
@@ -1093,22 +1144,28 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
                 </div>
               </div>
               <div className="summary-list">
-                <SummaryRow label="Service" value={created.service} />
+                <SummaryRow
+                  label="Service"
+                  value={
+                    service?.code === "baptism" && serviceType
+                      ? `${created.service} (${serviceType === "special" ? "Special" : "Regular"})`
+                      : created.service
+                  }
+                />
                 <SummaryRow label="Date" value={formatDateLong(created.date)} />
                 <SummaryRow label="Time" value={formatTime12h(created.time)} />
-                <SummaryRow label={serviceType === "special" ? "Base fee" : "Fee"} value={formatPeso(created.fee)} />
-                {serviceType === "special" && (
-                  <>
-                    <SummaryRow label="Special request fee" value="Pending parish assessment" />
-                    <SummaryRow label="Overall total" value="Pending parish assessment" />
-                  </>
-                )}
+                <SummaryRow
+                  label={service?.feeLabel ? "Offering" : "Amount"}
+                  value={service?.feeLabel ?? formatPeso(created.fee)}
+                />
                 <SummaryRow
                   label="Payment"
                   value={
                     created.paymentMethod === "gcash"
                       ? "GCash (awaiting verification)"
-                      : "Pay at the church"
+                      : service?.feeLabel
+                        ? "Donation at the parish office"
+                        : "Pay at the church"
                   }
                 />
                 <div className="summary-row">
@@ -1121,7 +1178,9 @@ export default function ServicesBooking({ gcashPayee, signedIn = false, account 
               <div className="notice-box">
                 Please save your reference number and present it at the parish office.{" "}
                 {created.paymentMethod === "church"
-                  ? "Payment is made in person at the parish office."
+                  ? service?.feeLabel
+                    ? "Any donation may be offered at the parish office."
+                    : "Payment is made in person at the parish office."
                   : "The parish office will verify your GCash reference before marking the appointment as paid."}
               </div>
               <div className="modal-actions">

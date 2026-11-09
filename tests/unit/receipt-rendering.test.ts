@@ -26,15 +26,14 @@ const unpaid = unpaidWebReceiptSnapshot({
 }, new Date("2026-10-19T17:00:00Z"));
 
 describe("web booking receipts", () => {
-  it("generates an unpaid receipt with the booking reference and selected service details, without a signature", async () => {
+  it("generates an unpaid receipt with the booking reference and selected service, without a signature", async () => {
     const pdf = await renderReceiptPdf(unpaid);
     const text = await pdfText(pdf);
     assert.equal(unpaid.receiptNumber, unpaid.bookingReference);
     assert.ok(text.includes("UNPAID"), text);
     assert.ok(text.includes(unpaid.bookingReference), text);
     assert.ok(text.includes("Mass Intention"), text);
-    assert.ok(text.includes("Name of Person: Lola"), text);
-    assert.ok(text.includes("Type of Mass: Memorial"), text);
+    assert.doesNotMatch(text, /Name of Person: Lola|Type of Mass: Memorial/);
     assert.ok(text.includes("No payment has been received"), text);
     assert.doesNotMatch(Buffer.from(pdf).toString("latin1"), /\/Subtype\s*\/Image/);
     assert.doesNotMatch(text, /Payment verified by the parish office/);
@@ -72,51 +71,58 @@ describe("web booking receipts", () => {
     assert.doesNotMatch(text, /Cash:\s*Received/);
   });
 
-  it("shows a pending special fee without presenting the base fee as a final total", async () => {
-    const special = unpaidWebReceiptSnapshot({
-      reference: "VP-7K3M-9Q2X",
-      payerName: "Juan Dela Cruz",
-      payerPhone: "09171234567",
-      service: "Baptism",
-      amount: "500.00",
-      paymentMethod: "church",
-      gcashReference: null,
-      gcashAccountName: null,
-      bookingDate: new Date("2026-10-22T00:00:00Z"),
-      bookingTime: "08:00",
-      details: { serviceCode: "baptism", serviceType: "Special", specialRequest: "Include a choir." },
-      paymentStatus: "unpaid",
-    }, new Date("2026-10-19T17:00:00Z"));
-    const text = await pdfText(await renderReceiptPdf(special));
-    assert.equal(special.specialQuotePending, true);
-    assert.ok(text.includes("Base service fee"), text);
-    assert.ok(text.includes("Special request fee"), text);
-    assert.ok(text.includes("Final total pending parish assessment"), text);
-    assert.ok(text.includes("CURRENT PHP"), text);
+  it("prints an admin-edited receipt number", async () => {
+    const edited = { ...unpaid, receiptNumber: "OR-2026/001" };
+    const text = await pdfText(await renderReceiptPdf(edited));
+    assert.ok(text.includes("No. OR-2026/001"), text);
   });
 
-  it("itemizes the special fee and total on a quoted special booking receipt", async () => {
+  it("shows a special baptism as one selected service and one total amount", async () => {
     const special = unpaidWebReceiptSnapshot({
       reference: "VP-7K3M-9Q2X",
       payerName: "Juan Dela Cruz",
       payerPhone: "09171234567",
       service: "Baptism",
-      amount: "750.00",
+      amount: "1650.00",
       paymentMethod: "church",
       gcashReference: null,
       gcashAccountName: null,
       bookingDate: new Date("2026-10-22T00:00:00Z"),
       bookingTime: "08:00",
-      details: { serviceCode: "baptism", serviceType: "Special", specialRequest: "Include a choir.", specialFee: "250.00" },
+      details: {
+        serviceCode: "baptism",
+        serviceType: "Special",
+        specialRequest: "Includes candle",
+        specialFee: "1350.00",
+      },
       paymentStatus: "unpaid",
     }, new Date("2026-10-19T17:00:00Z"));
     const text = await pdfText(await renderReceiptPdf(special));
-    assert.equal(special.specialQuotePending, false);
-    assert.equal(special.baseAmount, "500.00");
-    assert.equal(special.specialFee, "250.00");
-    assert.ok(text.includes("PHP 500.00"), text);
-    assert.ok(text.includes("PHP 250.00"), text);
+    assert.ok(text.includes("Baptism (Special)"), text);
+    assert.ok(text.includes("PHP 1,650.00"), text);
     assert.ok(text.includes("TOTAL PHP"), text);
-    assert.ok(text.includes("750.00"), text);
+    assert.doesNotMatch(text, /Base service fee|Special request fee|300\.00|1,350\.00|Includes candle/);
+  });
+
+  it("shows a regular baptism as one selected service and one total amount", async () => {
+    const regular = unpaidWebReceiptSnapshot({
+      reference: "VP-7K3M-9Q2X",
+      payerName: "Juan Dela Cruz",
+      payerPhone: "09171234567",
+      service: "Baptism",
+      amount: "300.00",
+      paymentMethod: "church",
+      gcashReference: null,
+      gcashAccountName: null,
+      bookingDate: new Date("2026-10-22T00:00:00Z"),
+      bookingTime: "08:00",
+      details: { serviceCode: "baptism", serviceType: "Ordinary" },
+      paymentStatus: "unpaid",
+    }, new Date("2026-10-19T17:00:00Z"));
+    const text = await pdfText(await renderReceiptPdf(regular));
+    assert.ok(text.includes("Baptism (Regular)"), text);
+    assert.ok(text.includes("PHP 300.00"), text);
+    assert.ok(text.includes("TOTAL PHP"), text);
+    assert.doesNotMatch(text, /Special request fee|Special baptism package|550\.00/);
   });
 });

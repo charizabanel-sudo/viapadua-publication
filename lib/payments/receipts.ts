@@ -41,9 +41,6 @@ export type ReceiptSnapshot = {
   appointmentDate?: string;
   appointmentTime?: string | null;
   serviceDetails?: { label: string; value: string }[];
-  baseAmount?: string;
-  specialFee?: string | null;
-  specialQuotePending?: boolean;
 };
 
 export type PaymentFailure = "not_found" | "already_paid" | "cancelled" | "verification_required" | "missing_fee" | "missing_method" | "historical_incomplete";
@@ -68,6 +65,17 @@ async function lockBooking(tx: Prisma.TransactionClient, bookingId: number): Pro
   return rows[0];
 }
 
+function displayServiceType(value: unknown): "Regular" | "Special" | null {
+  if (value === "Special") return "Special";
+  if (value === "Ordinary" || value === "Regular") return "Regular";
+  return null;
+}
+
+function serviceType(details: Prisma.JsonValue | null): "Regular" | "Special" | null {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return null;
+  return displayServiceType(details.serviceType);
+}
+
 function serviceDetails(details: Prisma.JsonValue | null): { label: string; value: string }[] {
   if (!details || typeof details !== "object" || Array.isArray(details)) return [];
   const serviceCode = typeof details.serviceCode === "string" ? details.serviceCode : "";
@@ -82,19 +90,10 @@ function serviceDetails(details: Prisma.JsonValue | null): { label: string; valu
   });
 }
 
-function specialFeeBreakdown(details: Prisma.JsonValue | null): Pick<ReceiptSnapshot, "baseAmount" | "specialFee" | "specialQuotePending"> {
-  if (!details || typeof details !== "object" || Array.isArray(details) || details.serviceType !== "Special") return {};
-  const serviceCode = typeof details.serviceCode === "string" ? details.serviceCode : "";
-  const service = getBookableService(serviceCode);
-  const feeValue = details.specialFee;
-  const fee = typeof feeValue === "string" && /^\d+(?:\.\d{1,2})?$/.test(feeValue) && Number.isFinite(Number(feeValue))
-    ? Number(feeValue).toFixed(2)
-    : null;
-  return {
-    ...(service ? { baseAmount: Number(service.fee).toFixed(2) } : {}),
-    specialFee: fee,
-    specialQuotePending: fee === null,
-  };
+function receiptServiceLabel(service: string, details?: ReceiptSnapshot["serviceDetails"]): string {
+  if (/\((Regular|Special)\)$/.test(service)) return service;
+  const type = displayServiceType(details?.find((detail) => detail.label === "Appointment type")?.value);
+  return type ? `${service} (${type})` : service;
 }
 
 type WebReceiptData = {
@@ -112,11 +111,12 @@ type WebReceiptData = {
 };
 
 function webReceiptSnapshot(data: WebReceiptData, status: "paid" | "unpaid", now: Date, paidAt?: Date): ReceiptSnapshot {
+  const type = serviceType(data.details);
   return {
     receiptNumber: data.reference,
     bookingReference: data.reference,
     payerName: data.payerName,
-    service: data.service,
+    service: type ? `${data.service} (${type})` : data.service,
     amount: Number(data.amount).toFixed(2),
     currency: "PHP",
     paymentMethod: data.paymentMethod,
@@ -132,7 +132,6 @@ function webReceiptSnapshot(data: WebReceiptData, status: "paid" | "unpaid", now
     appointmentDate: data.bookingDate.toISOString().slice(0, 10),
     appointmentTime: data.bookingTime,
     serviceDetails: serviceDetails(data.details),
-    ...specialFeeBreakdown(data.details),
   };
 }
 
@@ -225,6 +224,9 @@ export async function issueReceiptForPaidBooking(db: Db, params: { bookingId: nu
 
 export type ReceiptRenderer = (snapshot: ReceiptSnapshot) => Promise<Uint8Array>;
 export type IssueResult = { status: "issued"; receiptNumber: string; documentId: string } | { status: "pending"; receiptNumber: string; error: string };
+export type ReceiptNumberUpdateResult =
+  | { ok: true; receiptNumber: string }
+  | { ok: false; reason: "not_found" | "invalid_number" | "number_in_use" | "changed" | "missing_document" };
 
 /** Renders and stores the PDF once. Safe to call repeatedly or concurrently; the first success wins. */
 export async function issueReceipt(db: Db, receiptId: string, adminId: number, render: ReceiptRenderer = renderReceiptPdf): Promise<IssueResult> {
@@ -245,6 +247,10 @@ export async function issueReceipt(db: Db, receiptId: string, adminId: number, r
     await tx.$queryRaw`SELECT id FROM payment_receipts WHERE id = ${receiptId}::uuid FOR UPDATE`;
     const current = await tx.paymentReceipt.findUniqueOrThrow({ where: { id: receiptId } });
     if (current.status === "issued" && current.documentId) return { status: "issued", receiptNumber: current.receiptNumber, documentId: current.documentId } as const;
+    const currentSnapshot = current.snapshot as unknown as ReceiptSnapshot;
+    if (currentSnapshot.receiptNumber !== snapshot.receiptNumber) {
+      return { status: "pending", receiptNumber: current.receiptNumber, error: "The receipt number changed while the PDF was being generated. Please retry." } as const;
+    }
     const doc = await tx.privateDocument.create({
       data: {
         kind: RECEIPT_DOCUMENT_KIND,
@@ -262,6 +268,67 @@ export async function issueReceipt(db: Db, receiptId: string, adminId: number, r
     await tx.paymentReceipt.update({ where: { id: receiptId }, data: { status: "issued", documentId: doc.id, issuedAt: new Date(), attempts: { increment: 1 }, lastError: null } });
     await tx.portalAudit.create({ data: { action: "receipt_issued", targetId: receiptId, adminId, detail: { bookingId: current.bookingId, receiptNumber: current.receiptNumber, documentId: doc.id } } });
     return { status: "issued", receiptNumber: current.receiptNumber, documentId: doc.id } as const;
+  });
+}
+
+/** Updates the displayed receipt number and keeps an already-issued PDF in sync. */
+export async function updateReceiptNumber(
+  db: Db,
+  params: { receiptId: string; adminId: number; receiptNumber: string },
+): Promise<ReceiptNumberUpdateResult> {
+  const receiptNumber = params.receiptNumber.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9/-]{0,31}$/.test(receiptNumber)) {
+    return { ok: false, reason: "invalid_number" };
+  }
+  const receipt = await db.paymentReceipt.findUnique({ where: { id: params.receiptId } });
+  if (!receipt) return { ok: false, reason: "not_found" };
+  if (receipt.receiptNumber === receiptNumber) return { ok: true, receiptNumber };
+  const duplicate = await db.paymentReceipt.findUnique({ where: { receiptNumber }, select: { id: true } });
+  if (duplicate && duplicate.id !== receipt.id) return { ok: false, reason: "number_in_use" };
+
+  const snapshot = { ...(receipt.snapshot as unknown as ReceiptSnapshot), receiptNumber };
+  const pdf = await renderReceiptPdf(snapshot);
+  if (!pdf.length) throw new Error("Receipt PDF generation returned an empty document.");
+  const sha256 = createHash("sha256").update(pdf).digest("hex");
+
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM payment_receipts WHERE id = ${params.receiptId}::uuid FOR UPDATE`;
+    const current = await tx.paymentReceipt.findUniqueOrThrow({ where: { id: params.receiptId } });
+    if (current.receiptNumber !== receipt.receiptNumber) return { ok: false, reason: "changed" } as const;
+    const conflict = await tx.paymentReceipt.findUnique({ where: { receiptNumber }, select: { id: true } });
+    if (conflict && conflict.id !== current.id) return { ok: false, reason: "number_in_use" } as const;
+
+    if (current.status === "issued" && !current.documentId) {
+      return { ok: false, reason: "missing_document" } as const;
+    }
+    if (current.status !== "pending" && current.status !== "issued") {
+      return { ok: false, reason: "not_found" } as const;
+    }
+
+    await tx.paymentReceipt.update({
+      where: { id: current.id },
+      data: { receiptNumber, snapshot: snapshot as unknown as Prisma.InputJsonValue },
+    });
+    if (current.documentId) {
+      await tx.privateDocument.update({
+        where: { id: current.documentId },
+        data: {
+          filename: `ViaPadua-Receipt-${receiptNumber}.pdf`,
+          size: pdf.length,
+          sha256,
+          content: new Uint8Array(pdf),
+        },
+      });
+    }
+    await tx.portalAudit.create({
+      data: {
+        action: "receipt_number_updated",
+        targetId: current.id,
+        adminId: params.adminId,
+        detail: { bookingId: current.bookingId, from: current.receiptNumber, to: receiptNumber },
+      },
+    });
+    return { ok: true, receiptNumber } as const;
   });
 }
 
@@ -307,19 +374,11 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
     const headerHeight = 22;
     const rowHeight = 16;
     const formatAmount = (amount: string) => `PHP ${Number(amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+    const blankRows = (count: number) => Array.from({ length: count }, () => ({ description: "", amount: "" }));
     const rows = [
-      ...(s.baseAmount
-        ? [
-            { description: s.service, amount: "" },
-            { description: "Base service fee", amount: formatAmount(s.baseAmount) },
-            {
-              description: "Special request fee",
-              amount: s.specialQuotePending ? "" : formatAmount(s.specialFee ?? "0"),
-            },
-            ...(s.specialQuotePending ? [{ description: "Final total pending parish assessment", amount: "" }] : []),
-          ]
-        : [{ description: s.service, amount: formatAmount(s.amount) }]),
-      ...(s.serviceDetails ?? []).slice(0, 8).map((detail) => ({ description: `${detail.label}: ${detail.value}`, amount: "" })),
+      { description: receiptServiceLabel(s.service, s.serviceDetails), amount: formatAmount(s.amount) },
+      ...blankRows(/\(Special\)$/.test(s.service) ? 2 : 0),
+      ...blankRows(Math.min(s.serviceDetails?.length ?? 0, 8)),
       ...(s.gcashReference ? [{ description: `GCash reference: ${s.gcashReference}`, amount: "" }] : []),
     ];
     const tableBottom = tableTop - headerHeight - rows.length * rowHeight - 22;
@@ -332,7 +391,7 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
     page.drawLine({ start: { x: left, y: pageHeight - 82 }, end: { x: right, y: pageHeight - 82 }, thickness: 0.8, color: color(INK) });
     page.drawRectangle({ x: left, y: 493, width: 174, height: 25, color: color(INK) });
     text("OFFICIAL RECEIPT", left + 10, 501, 12, bold, { r: 1, g: 1, b: 1 });
-    text(`No. ${s.bookingReference}`, 211, 502, 10, bold, { r: 0.55, g: 0.08, b: 0.16 });
+    text(`No. ${s.receiptNumber}`, 211, 502, 10, bold, { r: 0.55, g: 0.08, b: 0.16 });
     page.drawRectangle({ x: 329, y: 493, width: 63, height: 24, borderColor: color(statusColor), borderWidth: 1.5 });
     text(s.paymentStatus === "paid" ? "PAID" : "UNPAID", 334, 500, 10, bold, statusColor);
     text(`Date: ${longDate(s.issueDate)}`, 270, 472, 8, regular, detailsColor);
@@ -343,7 +402,7 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
     text("CP No.", left, 428, 10, bold);
     text((s.payerPhone ?? "").slice(0, 24), 75, 428, 10);
     page.drawLine({ start: { x: 75, y: 425 }, end: { x: 228, y: 425 }, thickness: 0.55, color: color(MUTED) });
-    text(s.specialQuotePending ? "Base amount" : "Amount", 239, 428, 10, bold);
+    text("Amount", 239, 428, 10, bold);
     text(`PHP ${Number(s.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`, 286, 428, 10);
     page.drawLine({ start: { x: 286, y: 425 }, end: { x: right, y: 425 }, thickness: 0.55, color: color(MUTED) });
     text(`Payment: ${s.paymentMethodLabel}`, left, 407, 9);
@@ -365,7 +424,7 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
       page.drawLine({ start: { x: left, y: top - rowHeight }, end: { x: right, y: top - rowHeight }, thickness: 0.6, color: color(MUTED) });
     });
     text("THANK YOU", left + 6, tableBottom + 6, 9, bold);
-    text(s.specialQuotePending ? "CURRENT PHP" : "TOTAL PHP", 207, tableBottom + 6, 9, bold);
+    text("TOTAL PHP", 207, tableBottom + 6, 9, bold);
     text(Number(s.amount).toLocaleString("en-US", { minimumFractionDigits: 2 }), 337, tableBottom + 6, 8, bold);
 
     const footerTop = tableBottom - 20;
@@ -412,7 +471,7 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
 
   const rows: [string, string][] = [
     ["Received from", s.payerName],
-    ["Service", s.service],
+    ["Service", receiptServiceLabel(s.service, s.serviceDetails)],
     ["Appointment reference", s.bookingReference],
     ["Payment method", s.paymentMethodLabel],
     ...(s.gcashReference ? ([["GCash reference", s.gcashReference]] as [string, string][]) : []),

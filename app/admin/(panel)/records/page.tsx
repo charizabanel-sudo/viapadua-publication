@@ -4,6 +4,7 @@ import Link from "next/link";
 import ActionButton from "@/components/admin/ActionButton";
 import CertificateEditor from "@/components/admin/CertificateEditor";
 import PrintButton from "@/components/admin/PrintButton";
+import ReceiptNumberEditor from "@/components/admin/ReceiptNumberEditor";
 import { formatPeso } from "@/lib/booking/catalog";
 import { isBookingStatus } from "@/lib/booking/queries";
 import { formatDateLong, formatTime12h, toIsoDate } from "@/lib/booking/schedule";
@@ -199,6 +200,12 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
                       <ActionButton action={receiptAction} fields={{ bookingId: r.id }} confirm={`Issue a parish payment receipt for ${r.reference} using the recorded payment date and amount?`} className="btn btn-receipt btn-sm" pendingLabel="Generating…">
                         <i className="fas fa-receipt" aria-hidden="true" /> Issue receipt
                       </ActionButton>
+                    )}
+                    {r.paymentReceipt && (
+                      <ReceiptNumberEditor
+                        receiptId={r.paymentReceipt.id}
+                        receiptNumber={r.paymentReceipt.receiptNumber}
+                      />
                     )}
                     {certEligible && (
                       <CertificateEditor

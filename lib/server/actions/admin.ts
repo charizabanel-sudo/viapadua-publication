@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { blockDate, unblockDate } from "@/lib/admin/calendar";
 import { createEvent, deleteEvent, updateEvent, validateEventInput } from "@/lib/admin/events";
 import { markBookingPaid, saveBookingCertificate, validateCertificate } from "@/lib/admin/records";
-import { issueReceipt, issueReceiptForPaidBooking, PAYMENT_MESSAGES } from "@/lib/payments/receipts";
+import { issueReceipt, issueReceiptForPaidBooking, PAYMENT_MESSAGES, updateReceiptNumber } from "@/lib/payments/receipts";
 import { formatDateLong } from "@/lib/booking/schedule";
 import { changeBookingStatus } from "@/lib/booking/status";
 import { requireAdmin } from "@/lib/server/auth";
@@ -160,6 +160,35 @@ export async function receiptAction(formData: FormData): Promise<ActionResult> {
       : { ok: false, message: `Receipt ${issued.receiptNumber} could not be generated. Please retry in a moment.` };
   } catch (error) {
     return failure(error, "The receipt couldn't be generated.");
+  }
+}
+
+export async function updateReceiptNumberAction(formData: FormData): Promise<ActionResult> {
+  const admin = await requireAdmin();
+  const receiptId = formData.get("receiptId");
+  const receiptNumber = formData.get("receiptNumber");
+  if (typeof receiptId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(receiptId)) {
+    return { ok: false, message: "Invalid receipt." };
+  }
+  if (typeof receiptNumber !== "string" || !/^[A-Za-z0-9][A-Za-z0-9/-]{0,31}$/.test(receiptNumber.trim())) {
+    return { ok: false, message: "Use 1–32 letters, numbers, hyphens or slashes for the receipt number." };
+  }
+  try {
+    const result = await updateReceiptNumber(getDb(), { receiptId, adminId: admin.id, receiptNumber });
+    if (!result.ok) {
+      const messages = {
+        not_found: "Receipt not found.",
+        invalid_number: "Use 1–32 letters, numbers, hyphens or slashes for the receipt number.",
+        number_in_use: "That receipt number is already in use.",
+        changed: "This receipt was updated elsewhere. Refresh the page and try again.",
+        missing_document: "The issued receipt PDF is missing, so its number couldn't be changed.",
+      } as const;
+      return { ok: false, message: messages[result.reason] };
+    }
+    refreshAdmin();
+    return { ok: true, message: `Receipt number updated to ${result.receiptNumber}.` };
+  } catch (error) {
+    return failure(error, "The receipt number couldn't be updated. It may already be in use; verify the number and try again.");
   }
 }
 

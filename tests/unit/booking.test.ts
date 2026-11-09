@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { BOOKABLE_SERVICES, getBookableService } from "@/lib/booking/catalog";
+import { BOOKABLE_SERVICES, SERVICE_CARDS, getBookableService } from "@/lib/booking/catalog";
+import { certificateTypes } from "@/lib/certificates/requests";
 import { generateBookingReference, isBookingReference, legacyBookingReference } from "@/lib/booking/reference";
 import { checkBookingDate, findSlotConflict, isBlockedWeekday, todayInParish, weekdayName } from "@/lib/booking/schedule";
 import { normalizePhone, validateBookingInput } from "@/lib/booking/validation";
@@ -62,7 +63,7 @@ describe("booking validation", () => {
     const result = validateBookingInput(baptism(), NOW);
     assert.ok(result.ok, JSON.stringify(!result.ok && result.fieldErrors));
     assert.equal(result.data.service.name, "Baptism");
-    assert.equal(result.data.service.fee, 500);
+    assert.equal(result.data.service.fee, 300);
     assert.equal(result.data.requester.name, "Juan Dela Cruz");
     assert.equal(result.data.requester.email, "juan@example.com");
     assert.equal(result.data.requester.phone, "09171234567");
@@ -87,18 +88,14 @@ describe("booking validation", () => {
     if (valid.ok) assert.equal(valid.data.details.fatherName, undefined);
   });
 
-  it("stores service type and special requests for special baptism appointments", () => {
-    const missing = validateBookingInput(baptism({ serviceType: "special", specialRequest: "" }), NOW);
-    assert.equal(missing.ok, false);
-
-    const result = validateBookingInput(
-      baptism({ serviceType: "special", specialRequest: "Please include a choir for the program." }),
-      NOW,
-    );
+  it("applies the fixed special baptism package and records its included candle", () => {
+    const result = validateBookingInput(baptism({ serviceType: "special" }), NOW);
     assert.ok(result.ok);
     if (result.ok) {
       assert.equal(result.data.details.serviceType, "Special");
-      assert.equal(result.data.details.specialRequest, "Please include a choir for the program.");
+      assert.equal(result.data.service.fee, 1650);
+      assert.equal(result.data.details.specialFee, "1350");
+      assert.equal(result.data.details.specialRequest, "Includes candle");
     }
   });
 
@@ -109,7 +106,7 @@ describe("booking validation", () => {
       NOW,
     );
     assert.ok(result.ok);
-    if (result.ok) assert.equal(result.data.details.specialRequest.length, 300);
+    if (result.ok) assert.ok(result.data.details.specialRequest.endsWith(request));
 
     const tooLong = validateBookingInput(
       baptism({ serviceType: "special", specialRequest: "x".repeat(5001) }),
@@ -137,6 +134,17 @@ describe("booking validation", () => {
       assert.ok(r.fieldErrors.bookEmail);
       assert.ok(r.fieldErrors.bookContact);
     }
+    const missingPhone = validateBookingInput(baptism({ bookContact: "" }), NOW);
+    assert.equal(missingPhone.ok, false);
+    if (!missingPhone.ok) assert.match(missingPhone.fieldErrors.bookContact, /required/);
+
+    const accountWithoutPhone = validateBookingInput(
+      baptism({ bookContact: "" }),
+      NOW,
+      { requireContact: false },
+    );
+    assert.ok(accountWithoutPhone.ok);
+    if (accountWithoutPhone.ok) assert.equal(accountWithoutPhone.data.requester.phone, "");
   });
 
   it("requires a payment method and full GCash details for GCash", () => {
@@ -181,7 +189,9 @@ describe("booking validation", () => {
 
   it("normalizes phone numbers", () => {
     assert.equal(normalizePhone("0917-123-4567"), "09171234567");
+    assert.equal(normalizePhone("917-123-4567"), "09171234567");
     assert.equal(normalizePhone("+63 917 123 4567"), "09171234567");
+    assert.equal(normalizePhone("63 917 123 4567"), "09171234567");
     assert.equal(normalizePhone("+1 415 555 0100"), "+14155550100");
     assert.equal(normalizePhone("555-0100"), null);
   });
@@ -189,8 +199,45 @@ describe("booking validation", () => {
   it("every catalog service is bookable with its required fields", () => {
     for (const service of BOOKABLE_SERVICES) {
       assert.equal(getBookableService(service.code), service);
-      assert.ok(service.fee > 0);
+      assert.ok(service.fee >= 0);
     }
+    assert.deepEqual(
+      Object.fromEntries(BOOKABLE_SERVICES.map(({ code, fee }) => [code, fee])),
+      {
+        baptism: 300,
+        wedding: 12250,
+        confirmation: 700,
+        "house-blessing": 0,
+        "business-blessing": 0,
+        funeral: 1850,
+        "mass-intention": 300,
+      },
+    );
+    assert.equal(BOOKABLE_SERVICES.find(({ code }) => code === "house-blessing")?.feeLabel, "By donation");
+    assert.deepEqual(certificateTypes.map(({ fee }) => fee), [100, 100, 100]);
+    for (const card of SERVICE_CARDS) {
+      assert.doesNotMatch(card.pricingNote ?? "", /permit/i);
+    }
+  });
+
+  it("keeps donation bookings payable at the parish office", () => {
+    const blessing = {
+      serviceCode: "house-blessing",
+      bookFullName: "Ana Reyes",
+      bookEmail: "ana@example.com",
+      bookContact: "09181234567",
+      bookDate: "2026-10-22",
+      bookTime: "08:00",
+      blessingAddress: "Ponso, Polangui",
+      blessingContact: "Ana Reyes",
+    };
+    const gcash = validateBookingInput({ ...blessing, payment_method: "gcash" }, NOW);
+    assert.equal(gcash.ok, false);
+    if (!gcash.ok) assert.match(gcash.fieldErrors.payment_method, /parish office/);
+
+    const church = validateBookingInput({ ...blessing, payment_method: "church" }, NOW);
+    assert.ok(church.ok);
+    if (church.ok) assert.equal(church.data.service.fee, 0);
   });
 });
 

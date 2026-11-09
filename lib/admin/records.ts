@@ -24,7 +24,7 @@ export function certificateKind(service: string): CertificateKind {
 
 const recordSelect = {
   documents: { select: { id: true, kind: true, filename: true, released: true } },
-  paymentReceipt: { select: { status: true, receiptNumber: true, documentId: true } },
+  paymentReceipt: { select: { id: true, status: true, receiptNumber: true, documentId: true } },
   id: true,
   reference: true,
   requesterName: true,

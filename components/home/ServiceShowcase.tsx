@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { SERVICE_CARDS, formatPeso } from "@/lib/booking/catalog";
+import { SERVICE_CARDS, formatPeso, getBookableService, getServiceFee } from "@/lib/booking/catalog";
 import { ServicesLink } from "@/components/public/PublicOverlayProvider";
+
+const BAPTISM = getBookableService("baptism");
 
 export default function ServiceShowcase() {
   const [active, setActive] = useState(0);
@@ -22,8 +24,35 @@ export default function ServiceShowcase() {
           <div className="showcase-top"><span className="showcase-icon"><i className={`fas ${card.icon}`} aria-hidden="true" /></span><span className="showcase-category">Parish services</span></div>
           <h3>{card.title}</h3><p className="showcase-subtitle">{card.subtitle}</p>
           <p className="showcase-description">{card.about}</p>
-          <div className="showcase-price"><span>Service offering</span><strong>{formatPeso(card.fee)}</strong></div>
           <details><summary>View requirements</summary><ul>{card.requirements.map((item) => <li key={item}>{item}</li>)}</ul></details>
+          {card.slug === "baptism" && BAPTISM ? (
+            <section className="showcase-price showcase-baptism-prices" aria-label="Baptism prices">
+              <span>Service offering</span>
+              <div className="showcase-price-options">
+                <div className="showcase-price-option">
+                  <span>Regular</span>
+                  <strong>{formatPeso(getServiceFee(BAPTISM, "ordinary"))}</strong>
+                </div>
+                <div className="showcase-price-option special">
+                  <span>Special</span>
+                  <strong>{formatPeso(getServiceFee(BAPTISM, "special"))}</strong>
+                </div>
+              </div>
+              <small className="showcase-price-includes">Includes candle</small>
+            </section>
+          ) : (
+            <section className="showcase-price showcase-single-price" aria-label={`${card.title} service offering`}>
+              <span>Service offering</span>
+              <div className="showcase-price-options">
+                <div className="showcase-price-option single">
+                  <span>{card.priceBoxLabel ?? card.title}</span>
+                  <strong>{card.priceBoxValue ?? formatPeso(card.fee)}</strong>
+                </div>
+              </div>
+              {card.priceBoxNote && <small className="showcase-price-includes">{card.priceBoxNote}</small>}
+            </section>
+          )}
+          {card.pricingNote && <p className="showcase-price-note">{card.pricingNote}</p>}
           <div className="showcase-actions"><ServicesLink service={card.serviceCodes.length > 1 ? card.slug : card.serviceCodes[0]} className="showcase-book">Book {card.title}<i className="fas fa-arrow-right" aria-hidden="true" /></ServicesLink>
             {card.certificate && <ServicesLink service={card.slug} step="certificate" className="showcase-certificate">Request Certificate <span>{formatPeso(card.certificate.fee)}</span></ServicesLink>}
           </div>

@@ -321,7 +321,18 @@
 .showcase-description { margin-top: 18px; color: var(--muted); font-size: 14px; line-height: 1.7; }
 .showcase-price { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 20px 0 12px; padding-top: 18px; border-top: 1px solid var(--line); }
 .showcase-price > span { font-size: 12px; color: var(--muted); }
-.showcase-price strong { font-size: 26px; font-weight: 600; color: var(--brand); letter-spacing: -.7px; }
+.showcase-price strong { max-width: 72%; font-size: 14px; font-weight: 600; color: var(--brand); letter-spacing: 0; line-height: 1.5; text-align: right; }
+.showcase-baptism-prices, .showcase-single-price { display: block; margin-top: 14px; padding-top: 14px; }
+.showcase-baptism-prices > span, .showcase-single-price > span { display: block; margin-bottom: 7px; }
+.showcase-price-options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.showcase-price-option { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 10px; min-width: 0; min-height: 44px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.showcase-price-option > span { color: var(--muted); font-size: 10px; font-weight: 600; }
+.showcase-price-option strong { max-width: none; color: var(--brand); font-size: 15px; font-weight: 700; text-align: right; letter-spacing: 0; line-height: 1.3; }
+.showcase-price-option.single strong { font-size: 16px; }
+.showcase-price-option.special { border-color: rgb(var(--accent-rgb) / 55%); background: linear-gradient(145deg, var(--surface-soft), rgb(var(--accent-rgb) / 10%)); }
+.showcase-price-option.special > span { color: var(--accent-ink); }
+.showcase-price-includes { display: block; margin: 5px 0 0 10px; color: var(--muted); font-size: 10px; line-height: 1.3; }
+.showcase-price-note { margin: -4px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .showcase-card details { font-size: 13px; color: var(--muted); }
 .showcase-card summary { color: var(--brand); cursor: pointer; padding: 10px 0; min-height: 44px; }
 .showcase-card ul { padding: 8px 0 12px 18px; line-height: 1.8; }

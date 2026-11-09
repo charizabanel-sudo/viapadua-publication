@@ -111,6 +111,9 @@
     .record-info dd { font-size: 16px; color: #3a4757; margin-top: 2px; }
     .record-actions { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
     .record-actions .btn { width: 100%; }
+    .receipt-number-editor { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #f9fafb; }
+    .receipt-number-editor label { display: grid; gap: 4px; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .receipt-number-editor input { min-width: 0; width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; background: #ffffff; color: var(--ink); font-size: 13px; }
     .badge-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-bottom: 4px; }
     .btn-receipt { background: #6b7280; color: #ffffff; border: 2px solid #374151; font-weight: 800; }
     .btn-receipt:hover { background: #9ca3af; color: #ffffff; border-color: #374151; }

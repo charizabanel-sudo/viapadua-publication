@@ -28,6 +28,10 @@ export type BookableService = {
   /** Stored in bookings.service (matches legacy service names). */
   name: string;
   fee: number;
+  /** Services with no fixed fee, such as blessings, show this instead of a peso amount. */
+  feeLabel?: string;
+  /** Fixed total for the special baptism option. */
+  specialFee?: number;
   fields: FieldRows;
 };
 
@@ -40,6 +44,11 @@ export type ServiceCard = {
   about: string;
   requirements: readonly string[];
   fee: number;
+  priceLabel?: string;
+  priceBoxLabel?: string;
+  priceBoxValue?: string;
+  priceBoxNote?: string;
+  pricingNote?: string;
   /** Bookable service codes. More than one shows the legacy chooser (Blessing). */
   serviceCodes: readonly string[];
   /** Certificate request (workflow not migrated yet — shown as awaiting migration). */
@@ -91,7 +100,8 @@ export const BOOKABLE_SERVICES: readonly BookableService[] = [
   {
     code: "baptism",
     name: "Baptism",
-    fee: 500,
+    fee: 300,
+    specialFee: 1650,
     fields: [
       [
         { name: "childName", label: "Child's Full Name", type: "text", required: true, placeholder: "Full name of the child" },
@@ -122,7 +132,7 @@ export const BOOKABLE_SERVICES: readonly BookableService[] = [
   {
     code: "wedding",
     name: "Wedding",
-    fee: 3000,
+    fee: 12250,
     fields: [
       [{ name: "groomName", label: "Groom's Full Name", type: "text", required: true, placeholder: "Groom's full name" }],
       [{ name: "brideName", label: "Bride's Full Name", type: "text", required: true, placeholder: "Bride's full name" }],
@@ -141,7 +151,7 @@ export const BOOKABLE_SERVICES: readonly BookableService[] = [
   {
     code: "confirmation",
     name: "Confirmation",
-    fee: 600,
+    fee: 700,
     fields: [
       [
         { name: "candidateName", label: "Confirmation Candidate Name", type: "text", required: true, placeholder: "Full name" },
@@ -155,12 +165,12 @@ export const BOOKABLE_SERVICES: readonly BookableService[] = [
       ],
     ],
   },
-  { code: "house-blessing", name: "House Blessing", fee: 800, fields: blessingFields("House") },
-  { code: "business-blessing", name: "Business Blessing", fee: 800, fields: blessingFields("Business") },
+  { code: "house-blessing", name: "House Blessing", fee: 0, feeLabel: "By donation", fields: blessingFields("House") },
+  { code: "business-blessing", name: "Business Blessing", fee: 0, feeLabel: "By donation", fields: blessingFields("Business") },
   {
     code: "funeral",
     name: "Funeral",
-    fee: 1200,
+    fee: 1850,
     fields: [
       [
         { name: "deceasedName", label: "Name of Deceased", type: "text", required: true, placeholder: "Full name" },
@@ -214,9 +224,10 @@ export const SERVICE_CARDS: readonly ServiceCard[] = [
       "Godparents' information",
       "Baptismal seminar attendance",
     ],
-    fee: 500,
+    fee: 300,
+    priceLabel: "Regular ₱300 · Special ₱1,650 (includes candle)",
     serviceCodes: ["baptism"],
-    certificate: { name: "Baptismal Certificate", fee: 150 },
+    certificate: { name: "Baptismal Certificate", fee: 100 },
   },
   {
     slug: "wedding",
@@ -232,9 +243,13 @@ export const SERVICE_CARDS: readonly ServiceCard[] = [
       "Pre-marriage seminar attendance",
       "Two valid IDs (each)",
     ],
-    fee: 3000,
+    fee: 12250,
+    priceLabel: "₱12,250 wedding package",
+    priceBoxLabel: "Wedding package",
+    priceBoxValue: "₱12,250",
+    pricingNote: "Includes red carpet and other wedding package inclusions.",
     serviceCodes: ["wedding"],
-    certificate: { name: "Marriage Certificate", fee: 200 },
+    certificate: { name: "Marriage Certificate", fee: 100 },
   },
   {
     slug: "confirmation",
@@ -249,9 +264,13 @@ export const SERVICE_CARDS: readonly ServiceCard[] = [
       "Confirmation seminar attendance",
       "Valid ID",
     ],
-    fee: 600,
+    fee: 700,
+    priceLabel: "Special only: ₱700",
+    priceBoxLabel: "Special only",
+    priceBoxValue: "₱700",
+    pricingNote: "No regular Confirmation option.",
     serviceCodes: ["confirmation"],
-    certificate: { name: "Confirmation Certificate", fee: 150 },
+    certificate: { name: "Confirmation Certificate", fee: 100 },
   },
   {
     slug: "blessing",
@@ -261,7 +280,10 @@ export const SERVICE_CARDS: readonly ServiceCard[] = [
     about:
       "Request a blessing for your new home or business. Choose the type of blessing below and our parish priest will schedule a visit.",
     requirements: ["Complete address of house/business", "Preferred date & time", "Contact person & number"],
-    fee: 800,
+    fee: 0,
+    priceLabel: "By donation",
+    priceBoxLabel: "Service offering",
+    priceBoxValue: "By donation",
     serviceCodes: ["house-blessing", "business-blessing"],
   },
   {
@@ -272,7 +294,11 @@ export const SERVICE_CARDS: readonly ServiceCard[] = [
     about:
       "Request funeral service and mass for your loved one. Our parish offers compassionate support during this difficult time.",
     requirements: ["Death certificate", "Baptismal certificate", "Funeral service preference"],
-    fee: 1200,
+    fee: 1850,
+    priceLabel: "₱1,850 (includes choir)",
+    priceBoxLabel: "Funeral Mass",
+    priceBoxValue: "₱1,850",
+    priceBoxNote: "Includes choir",
     serviceCodes: ["funeral"],
   },
   {
@@ -283,6 +309,7 @@ export const SERVICE_CARDS: readonly ServiceCard[] = [
     about: "Schedule thanksgiving or memorial mass. Offer a mass intention for a loved one or for a special occasion.",
     requirements: ["Intention details", "Preferred date & time", "Mass offering"],
     fee: 300,
+    priceBoxLabel: "Mass offering",
     serviceCodes: ["mass-intention"],
   },
 ];
@@ -298,6 +325,13 @@ const BY_NAME = new Map(BOOKABLE_SERVICES.map((s) => [s.name.toLowerCase(), s]))
 
 export function getBookableService(code: string): BookableService | undefined {
   return BY_CODE.get(code);
+}
+
+export function getServiceFee(
+  service: BookableService,
+  serviceType?: "ordinary" | "special" | null,
+): number {
+  return serviceType === "special" ? service.specialFee ?? service.fee : service.fee;
 }
 
 export function findServiceByName(name: string): BookableService | undefined {
