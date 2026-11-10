@@ -820,69 +820,38 @@ try {
     buffer: docBytes,
   });
   await admin
-    .getByRole("button", { name: "Read PDF text / QR locally", exact: true })
-    .click();
-  await wait(
-    async () =>
-      (await admin.locator("textarea").first().inputValue()).includes(
-        "VP-TEST-0099",
-      ),
-    "local PDF text extraction",
-  );
-  await admin
-    .getByRole("button", { name: "Save unassigned scan", exact: true })
+    .getByRole("button", { name: "Read PDF (text / OCR)", exact: true })
     .click();
   await admin
     .getByRole("status")
-    .filter({ hasText: "Saved privately" })
+    .filter({ hasText: "Select Identify owner / record" })
     .waitFor();
+  assert.equal(new URL(admin.url()).pathname, "/admin/scanner");
+  await admin.getByRole("button", { name: "Identify owner / record" }).click();
   await admin
-    .getByRole("button", { name: "Find possible matches", exact: true })
-    .click();
-  await admin
-    .getByText("Reference found in extracted text", { exact: true })
+    .getByText("System reference resolved by server", { exact: true })
     .waitFor();
-  const scanRow = (
-    await pool.query(
-      "SELECT id,booking_id FROM private_documents WHERE kind='scan' ORDER BY created_at DESC LIMIT 1",
-    )
-  ).rows[0];
-  assert.equal(scanRow.booking_id, null);
-  await admin
-    .getByLabel("Why this record matches (required before attachment)")
-    .fill("Reference and name on source checked against the parish register.");
-  admin.once("dialog", (d) => d.accept());
-  await admin
-    .getByRole("button", {
-      name: "Confirm attachment to this booking",
-      exact: true,
-    })
-    .click();
-  await admin
-    .getByRole("status")
-    .filter({ hasText: "Attachment recorded" })
-    .waitFor();
-  assert.ok(
-    (
-      await pool.query("SELECT booking_id FROM private_documents WHERE id=$1", [
-        scanRow.id,
-      ])
-    ).rows[0].booking_id,
+  await admin.getByRole("button", { name: "Open booking record" }).click();
+  await admin.waitForURL(
+    `${base}/admin/records?q=VP-TEST-0099`,
   );
-  assert.ok(
-    (
-      await pool.query(
-        "SELECT admin_id FROM portal_audit WHERE action='scan_attached' AND target_id=$1",
-        [scanRow.id],
-      )
-    ).rows[0].admin_id,
+  await admin.getByRole("heading", { name: "Manage Records" }).waitFor();
+  await admin.getByText("Account A", { exact: true }).waitFor();
+  assert.equal(
+    Number(
+      (
+        await pool.query("SELECT count(*) FROM private_documents WHERE kind='scan'")
+      ).rows[0].count,
+    ),
+    0,
+    "matching and opening the record must not require saving the scan first",
   );
   assert.equal(
     (await userA.request.get(base + "/api/admin/scans")).status(),
     401,
   );
   pass(
-    "Small-phone scanner captures with a synthetic rear-camera stream, stops tracks, handles permission refusal, imports/extracts PDF locally, and requires audited attachment confirmation",
+    "Small-phone scanner captures with a synthetic rear-camera stream, stops tracks, handles permission refusal, reads PDFs locally, identifies on request, and opens a selected exact record without saving or attaching the scan",
   );
   for (const [page, label, url] of [
     [gp, "services-mobile", "/?services=1"],

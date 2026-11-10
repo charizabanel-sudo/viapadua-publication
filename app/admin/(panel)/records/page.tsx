@@ -38,12 +38,15 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
   const q = first(sp.q).slice(0, 100);
   const statusParam = first(sp.status);
   const status = isBookingStatus(statusParam) ? statusParam : undefined;
+  const parsedUserId = Number.parseInt(first(sp.userId), 10);
+  const userId = Number.isSafeInteger(parsedUserId) && parsedUserId > 0 ? parsedUserId : undefined;
   const page = Number.parseInt(first(sp.page), 10) || 1;
-  const list = await listRecords(getDb(), { q, status, page });
+  const list = await listRecords(getDb(), { q, status, userId, page });
 
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (status) params.set("status", status);
+  if (userId) params.set("userId", String(userId));
   const pageHref = (p: number) => {
     const next = new URLSearchParams(params);
     if (p > 1) next.set("page", String(p));
@@ -68,6 +71,7 @@ export default async function RecordsPage({ searchParams }: { searchParams: Sear
       </header>
 
       <form className="toolbar" action="/admin/records" method="get" role="search">
+        {userId && <input type="hidden" name="userId" value={userId} />}
         <div className="field grow">
           <label htmlFor="rec-q">Search</label>
           <input id="rec-q" type="search" name="q" defaultValue={q} maxLength={100} placeholder="Name, email, reference or service…" />

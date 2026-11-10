@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { blockDate, unblockDate } from "@/lib/admin/calendar";
 import { createEvent, deleteEvent, updateEvent, validateEventInput } from "@/lib/admin/events";
 import { markBookingPaid, saveBookingCertificate, validateCertificate } from "@/lib/admin/records";
-import { issueReceipt, issueReceiptForPaidBooking, PAYMENT_MESSAGES, updateReceiptNumber } from "@/lib/payments/receipts";
+import { issueReceipt, issueReceiptForPaidBooking, PAYMENT_MESSAGES, refreshIssuedReceipt, updateReceiptNumber } from "@/lib/payments/receipts";
 import { formatDateLong } from "@/lib/booking/schedule";
 import { changeBookingStatus } from "@/lib/booking/status";
 import { requireAdmin } from "@/lib/server/auth";
@@ -160,6 +160,30 @@ export async function receiptAction(formData: FormData): Promise<ActionResult> {
       : { ok: false, message: `Receipt ${issued.receiptNumber} could not be generated. Please retry in a moment.` };
   } catch (error) {
     return failure(error, "The receipt couldn't be generated.");
+  }
+}
+
+export async function refreshReceiptAction(formData: FormData): Promise<ActionResult> {
+  const admin = await requireAdmin();
+  const receiptId = formData.get("receiptId");
+  if (typeof receiptId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(receiptId)) {
+    return { ok: false, message: "Invalid receipt." };
+  }
+  try {
+    const result = await refreshIssuedReceipt(getDb(), { receiptId, adminId: admin.id });
+    if (!result.ok) {
+      const messages = {
+        not_found: "Receipt not found.",
+        not_paid: "Only paid bookings can have a signed receipt.",
+        not_issued: "This receipt has not been issued yet. Use Retry receipt instead.",
+        changed: "This receipt changed while it was being updated. Refresh the page and try again.",
+      } as const;
+      return { ok: false, message: messages[result.reason] };
+    }
+    refreshAdmin();
+    return { ok: true, message: `Paid receipt ${result.receiptNumber} updated with the current authorized signature.` };
+  } catch (error) {
+    return failure(error, "The paid receipt couldn't be updated.");
   }
 }
 

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
 import { createBookingRecord } from "@/lib/booking/create";
 import { validateBookingInput, type ValidBooking } from "@/lib/booking/validation";
-import { issueReceipt, issueReceiptForPaidBooking, recordVerifiedPayment, RECEIPT_DOCUMENT_KIND, updateReceiptNumber, type ReceiptSnapshot } from "@/lib/payments/receipts";
+import { issueReceipt, issueReceiptForPaidBooking, recordVerifiedPayment, RECEIPT_DOCUMENT_KIND, refreshIssuedReceipt, updateReceiptNumber, type ReceiptSnapshot } from "@/lib/payments/receipts";
 import { createPrismaClient, type Db } from "@/lib/db/client";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -72,6 +72,23 @@ describe("database: parish payment receipts", { skip }, () => {
     assert.doesNotMatch(text, /TIN|VAT|BIR/);
     assert.ok(await db.portalAudit.count({ where: { action: "payment_verified" } }));
     assert.ok(await db.portalAudit.count({ where: { action: "receipt_issued" } }));
+
+    await db.privateDocument.update({
+      where: { id: receipt.document!.id },
+      data: { content: new Uint8Array(Buffer.from("stale receipt")), size: 13 },
+    });
+    assert.deepEqual(
+      await refreshIssuedReceipt(db, { receiptId: receipt.id, adminId }),
+      { ok: true, receiptNumber: receipt.receiptNumber },
+    );
+    const refreshed = await db.paymentReceipt.findUniqueOrThrow({
+      where: { id: receipt.id },
+      include: { document: true },
+    });
+    assert.equal(refreshed.document?.id, receipt.document?.id);
+    const refreshedText = await pdfText(refreshed.document!.content);
+    assert.ok(refreshedText.includes("Authorized Signature"), refreshedText);
+    assert.ok(await db.portalAudit.count({ where: { action: "receipt_refreshed" } }));
 
     const updated = await updateReceiptNumber(db, {
       receiptId: receipt.id,

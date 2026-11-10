@@ -51,11 +51,12 @@ const recordSelect = {
 export type RecordItem = Prisma.BookingGetPayload<{ select: typeof recordSelect }>;
 
 /** Records list: newest booking first (legacy order), searchable by name, email, reference or service. */
-export function recordsWhere(opts: { q?: string; status?: BookingStatus }): Prisma.BookingWhereInput {
+export function recordsWhere(opts: { q?: string; status?: BookingStatus; userId?: number }): Prisma.BookingWhereInput {
   const q = opts.q?.trim().slice(0, 100);
   return {
     ...EXCLUDE_SAMPLES,
     ...(opts.status ? { status: opts.status } : {}),
+    ...(opts.userId ? { userId: opts.userId } : {}),
     ...(q
       ? {
           OR: [
@@ -69,7 +70,7 @@ export function recordsWhere(opts: { q?: string; status?: BookingStatus }): Pris
   };
 }
 
-export async function listRecords(db: Db, opts: { q?: string; status?: BookingStatus; page?: number }) {
+export async function listRecords(db: Db, opts: { q?: string; status?: BookingStatus; userId?: number; page?: number }) {
   const where = recordsWhere(opts);
   const total = await db.booking.count({ where });
   const pages = Math.max(1, Math.ceil(total / RECORDS_PAGE_SIZE));

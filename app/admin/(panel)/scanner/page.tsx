@@ -29,6 +29,8 @@ export default async function ScannerPage({
       createdAt: true,
       bookingId: true,
       requestId: true,
+      userId: true,
+      user: { select: { fullname: true, email: true } },
       uploadedBy: { select: { name: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -47,7 +49,7 @@ export default async function ScannerPage({
       {rows.map((d) => (
         <article className="portal-card" key={d.id}>
           <FileDownload href={`/api/documents/${d.id}`} previewHref={`/api/documents/${d.id}?preview=1`}>{d.filename}</FileDownload>
-          {!d.bookingId && !d.requestId && (
+          {!d.bookingId && !d.requestId && !d.userId && (
             <p>
               <a href={`/admin/scanner?document=${d.id}`}>
                 Review / attach this saved scan
@@ -59,7 +61,9 @@ export default async function ScannerPage({
               ? `Appointment #${d.bookingId}`
               : d.requestId
                 ? `Certificate request ${d.requestId}`
-                : "Unassigned"}{" "}
+                : d.userId
+                  ? `Account: ${d.user?.fullname ?? d.user?.email ?? "Linked user"}`
+                  : "Unassigned"}{" "}
             · {d.uploadedBy?.name ?? "Staff"} ·{" "}
             {d.createdAt.toLocaleString("en-PH", { timeZone: "Asia/Manila" })}
           </p>

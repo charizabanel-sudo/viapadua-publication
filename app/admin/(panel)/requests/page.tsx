@@ -6,6 +6,12 @@ import { reviewCertificateRequest } from "@/lib/server/actions/portal";
 import UploadDocument from "@/components/portal/UploadDocument";
 import CertificateEditor from "@/components/admin/CertificateEditor";
 
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function first(value: string | string[] | undefined): string {
+  return (Array.isArray(value) ? value[0] : value) ?? "";
+}
+
 const CERTIFICATE_DETAIL_FIELDS: Record<string, readonly { key: string; label: string }[]> = {
   baptism: [
     { key: "recipientName", label: "Name on parish record" },
@@ -27,9 +33,11 @@ const CERTIFICATE_DETAIL_FIELDS: Record<string, readonly { key: string; label: s
   ],
 };
 
-export default async function RequestsPage() {
+export default async function RequestsPage({ searchParams }: { searchParams: SearchParams }) {
   await requireAdmin();
+  const reference = first((await searchParams).reference).trim().slice(0, 64);
   const rows = await getDb().certificateRequest.findMany({
+    ...(reference ? { where: { reference: { equals: reference, mode: "insensitive" as const } } } : {}),
     orderBy: { createdAt: "desc" },
     take: 100,
     include: {

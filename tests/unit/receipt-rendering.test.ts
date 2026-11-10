@@ -59,6 +59,23 @@ describe("web booking receipts", () => {
     assert.match(text, /Cash:\s*Received/);
   });
 
+  it("includes the same authorized signature on paid legacy receipts", async () => {
+    const legacy: ReceiptSnapshot = {
+      ...unpaid,
+      template: undefined,
+      paymentStatus: "paid",
+      paymentDate: "2026-10-19",
+      paymentMethod: "church",
+      paymentMethodLabel: "Paid at the church",
+      gcashReference: null,
+    };
+    const pdf = await renderReceiptPdf(legacy);
+    const text = await pdfText(pdf);
+    const objects = Buffer.from(pdf).toString("latin1");
+    assert.ok(text.includes("Authorized Signature"), text);
+    assert.match(objects, /\/Subtype\s*\/Image/);
+  });
+
   it("does not describe an unpaid church booking as cash received", async () => {
     const church: ReceiptSnapshot = {
       ...unpaid,

@@ -177,6 +177,7 @@ async function createPendingReceipt(tx: Prisma.TransactionClient, b: BookingRow,
         paymentDate: manilaDate(paidAt),
         issueDate: manilaDate(now),
         parish: { ...PARISH_DETAILS },
+        paymentStatus: "paid",
       };
   const receipt = await tx.paymentReceipt.create({
     data: { serial, receiptNumber: snapshot.receiptNumber, bookingId: b.id, snapshot, amount: snapshot.amount, paymentMethod: method, paidAt, issuedById: adminId },
@@ -268,6 +269,64 @@ export async function issueReceipt(db: Db, receiptId: string, adminId: number, r
     await tx.paymentReceipt.update({ where: { id: receiptId }, data: { status: "issued", documentId: doc.id, issuedAt: new Date(), attempts: { increment: 1 }, lastError: null } });
     await tx.portalAudit.create({ data: { action: "receipt_issued", targetId: receiptId, adminId, detail: { bookingId: current.bookingId, receiptNumber: current.receiptNumber, documentId: doc.id } } });
     return { status: "issued", receiptNumber: current.receiptNumber, documentId: doc.id } as const;
+  });
+}
+
+export type ReceiptRefreshResult =
+  | { ok: true; receiptNumber: string }
+  | { ok: false; reason: "not_found" | "not_paid" | "not_issued" | "changed" };
+
+/** Rebuilds an existing paid receipt PDF with the current template and signature. */
+export async function refreshIssuedReceipt(
+  db: Db,
+  params: { receiptId: string; adminId: number },
+): Promise<ReceiptRefreshResult> {
+  const receipt = await db.paymentReceipt.findUnique({
+    where: { id: params.receiptId },
+    include: { booking: { select: { paymentStatus: true } } },
+  });
+  if (!receipt) return { ok: false, reason: "not_found" };
+  if (receipt.booking.paymentStatus !== "paid") return { ok: false, reason: "not_paid" };
+  if (receipt.status !== "issued" || !receipt.documentId) return { ok: false, reason: "not_issued" };
+  const documentId = receipt.documentId;
+
+  const snapshot = {
+    ...(receipt.snapshot as unknown as ReceiptSnapshot),
+    paymentStatus: "paid" as const,
+  };
+  const pdf = await renderReceiptPdf(snapshot);
+  if (!pdf.length) throw new Error("Receipt PDF generation returned an empty document.");
+  const sha256 = createHash("sha256").update(pdf).digest("hex");
+
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM payment_receipts WHERE id = ${params.receiptId}::uuid FOR UPDATE`;
+    const current = await tx.paymentReceipt.findUniqueOrThrow({ where: { id: params.receiptId } });
+    if (current.status !== "issued" || current.documentId !== documentId) {
+      return { ok: false, reason: "changed" } as const;
+    }
+
+    await tx.paymentReceipt.update({
+      where: { id: current.id },
+      data: { snapshot: snapshot as unknown as Prisma.InputJsonValue },
+    });
+    await tx.privateDocument.update({
+      where: { id: documentId },
+      data: {
+        filename: `ViaPadua-Receipt-${current.receiptNumber}.pdf`,
+        size: pdf.length,
+        sha256,
+        content: new Uint8Array(pdf),
+      },
+    });
+    await tx.portalAudit.create({
+      data: {
+        action: "receipt_refreshed",
+        targetId: current.id,
+        adminId: params.adminId,
+        detail: { bookingId: current.bookingId, receiptNumber: current.receiptNumber },
+      },
+    });
+    return { ok: true, receiptNumber: current.receiptNumber } as const;
   });
 }
 
@@ -365,6 +424,12 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
   const color = (c: typeof BLUE) => rgb(c.r, c.g, c.b);
   const W = page.getWidth();
   const text = (t: string, x: number, y: number, size: number, font = regular, c = INK) => page.drawText(safe(font, t), { x, y, size, font, color: color(c) });
+  const drawAuthorizedSignature = async (x: number, y: number, maxWidth: number, maxHeight: number) => {
+    const signature = await pdf.embedPng(AUTHORIZED_SIGNATURE_PNG);
+    const scale = Math.min(maxWidth / signature.width, maxHeight / signature.height);
+    const dimensions = signature.scale(scale);
+    page.drawImage(signature, { x, y, width: dimensions.width, height: dimensions.height });
+  };
 
   if (s.template === "web-booking") {
     const pageHeight = page.getHeight();
@@ -443,11 +508,9 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
     text("By:", 207, footerTop, 10, bold);
     page.drawLine({ start: { x: 228, y: tableBottom - 57 }, end: { x: right, y: tableBottom - 57 }, thickness: 0.7, color: color(INK) });
     if (s.paymentStatus === "paid") {
-      const signature = await pdf.embedPng(AUTHORIZED_SIGNATURE_PNG);
-      const dimensions = signature.scale(0.42);
-      page.drawImage(signature, { x: 242, y: tableBottom - 74, width: dimensions.width, height: dimensions.height });
+      await drawAuthorizedSignature(right - 116, tableBottom - 55, 110, 48);
     }
-    text("Authorized Signature", 273, tableBottom - 86, 9);
+    text("Authorized Signature", 273, tableBottom - 75, 9);
     text(
       s.paymentStatus === "paid"
         ? "Payment verified by the parish office."
@@ -491,6 +554,12 @@ export async function renderReceiptPdf(s: ReceiptSnapshot): Promise<Uint8Array> 
   text("AMOUNT RECEIVED", W - 222, boxY + 30, 9, bold, MUTED);
   text(`PHP ${Number(s.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`, W - 222, boxY + 10, 16, bold, BLUE);
   text("Payment verified by the parish office.", 36, boxY + 18, 10, regular, MUTED);
+  if (s.paymentStatus !== "unpaid") {
+    text("By:", 185, 80, 10, bold);
+    page.drawLine({ start: { x: 206, y: 77 }, end: { x: 318, y: 77 }, thickness: 0.7, color: color(INK) });
+    await drawAuthorizedSignature(220, 78, 90, 40);
+    text("Authorized Signature", 222, 64, 9);
+  }
 
   page.drawLine({ start: { x: 36, y: 46 }, end: { x: W - 36, y: 46 }, thickness: 0.8, color: color(BLUE) });
   text("This is a parish payment receipt generated by the Via Padua Parish Management System.", 36, 32, 8, regular, MUTED);

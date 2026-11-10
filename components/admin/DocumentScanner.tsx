@@ -1,16 +1,28 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- Private blob previews are intentionally unoptimized. */
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { downloadBlob } from "@/lib/certificates/pdf";
-import FileActions from "@/components/files/FileActions";
+
+type Owner = {
+  id: number;
+  name?: string | null;
+  fullname?: string | null;
+  email: string | null;
+};
+
 type Candidate = {
-  kind: "booking" | "request";
+  kind: "booking" | "request" | "user";
   id: number | string;
   reference: string;
   requesterName: string;
   bookingDate: string | Date;
   service: string;
   evidence: string;
+  matchedName?: string;
+  score?: number;
+  owner?: Owner | null;
+  userId?: number | null;
 };
 type Resolution = {
   kind: string;
@@ -19,7 +31,48 @@ type Resolution = {
   requesterName?: string;
   bookingId?: number;
   requestId?: string;
+  owner?: Owner | null;
+  userId?: number | null;
 };
+
+function destinationForMatch(data: {
+  candidates: Candidate[];
+  resolved: Resolution | null;
+}): string | null {
+  const resolved = data.resolved;
+  if (resolved?.kind === "booking" && resolved.reference) {
+    return `/admin/records?q=${encodeURIComponent(resolved.reference)}`;
+  }
+  if (resolved?.kind === "request" && resolved.reference) {
+    return `/admin/requests?reference=${encodeURIComponent(resolved.reference)}`;
+  }
+  if (data.candidates.length !== 1) return null;
+
+  const [candidate] = data.candidates;
+  if (candidate.kind === "booking") {
+    return `/admin/records?q=${encodeURIComponent(candidate.reference)}`;
+  }
+  if (candidate.kind === "request") {
+    return `/admin/requests?reference=${encodeURIComponent(candidate.reference)}`;
+  }
+  const userId = candidate.userId ?? candidate.id;
+  return Number.isSafeInteger(Number(userId))
+    ? `/admin/records?userId=${encodeURIComponent(String(userId))}`
+    : null;
+}
+
+function destinationForCandidate(candidate: Candidate): string | null {
+  if (candidate.kind === "booking") {
+    return `/admin/records?q=${encodeURIComponent(candidate.reference)}`;
+  }
+  if (candidate.kind === "request") {
+    return `/admin/requests?reference=${encodeURIComponent(candidate.reference)}`;
+  }
+  const userId = candidate.userId ?? candidate.id;
+  return Number.isSafeInteger(Number(userId))
+    ? `/admin/records?userId=${encodeURIComponent(String(userId))}`
+    : null;
+}
 
 function extractBookingReference(text: string): string | null {
   const compact = text.toUpperCase().replace(/\s+/g, "");
@@ -60,6 +113,7 @@ export default function DocumentScanner({
   initialDocumentId?: string;
   initialText?: string;
 }) {
+  const router = useRouter();
   const [starting, setStarting] = useState(false);
   const [camera, setCamera] = useState(false),
     [file, setSelectedFile] = useState<File | null>(null),
@@ -71,8 +125,7 @@ export default function DocumentScanner({
     [reference, setReference] = useState(initialReference);
   const [documentId, setDocumentId] = useState(initialDocumentId),
     [candidates, setCandidates] = useState<Candidate[]>([]),
-    [resolved, setResolved] = useState<Resolution | null>(null),
-    [note, setNote] = useState("");
+    [resolved, setResolved] = useState<Resolution | null>(null);
   const video = useRef<HTMLVideoElement>(null),
     stream = useRef<MediaStream | null>(null),
     mounted = useRef(true),
@@ -85,6 +138,15 @@ export default function DocumentScanner({
     previewRef.current = next ? URL.createObjectURL(next) : "";
     setPreview(previewRef.current);
     setSelectedFile(next);
+  };
+  const resetScanMatch = () => {
+    setDocumentId("");
+    setText("");
+    setQuery("");
+    setReference("");
+    setCandidates([]);
+    setResolved(null);
+    setMessage("");
   };
   const stop = () => {
     cameraGeneration.current++;
@@ -171,11 +233,8 @@ export default function DocumentScanner({
         if (blob && mounted.current) {
           const captured = new File([blob], "paper-scan.jpg", { type: "image/jpeg" });
           setFile(captured);
-          setDocumentId("");
-          setText("");
-          setCandidates([]);
-          setResolved(null);
-          void extract(captured);
+          resetScanMatch();
+          void extract(captured, true);
         }
       },
       "image/jpeg",
@@ -221,28 +280,59 @@ export default function DocumentScanner({
       setBusy(false);
     }
   }
+
+  // The whole OCR text goes to the server, which matches names itself,
+  // so no reference code is needed.
   async function findMatches(
     scanText = text,
     scanReference = reference,
     searchQuery = query,
   ) {
-    const params = new URLSearchParams({
-      q: searchQuery,
-      text: scanText.slice(0, 2000),
-      reference: scanReference,
+    const response = await fetch("/api/admin/scans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "match",
+        text: scanText.slice(0, 12000),
+        q: searchQuery.slice(0, 100),
+        reference: scanReference.slice(0, 64),
+      }),
     });
-    const response = await fetch("/api/admin/scans?" + params, { cache: "no-store" });
     const data = await response.json();
     if (!response.ok) throw Error(data.error);
     setCandidates(data.candidates);
     setResolved(data.resolved);
     return data as { candidates: Candidate[]; resolved: Resolution | null };
   }
-  async function extract(targetFile: File | null = file) {
+
+  async function ocr(source: Blob | HTMLCanvasElement) {
+    setMessage("Preparing OCR…");
+    const { createWorker } = await import("tesseract.js");
+    const worker = await createWorker("eng", 1, {
+      logger: ({ status, progress }) => {
+        if (!mounted.current) return;
+        setMessage(
+          status === "recognizing text"
+            ? `Reading document text… ${Math.round(progress * 100)}%`
+            : `Preparing OCR… ${status}`,
+        );
+      },
+    });
+    try {
+      const result = await worker.recognize(source, { rotateAuto: true });
+      return result.data.text.trim();
+    } finally {
+      await worker.terminate();
+    }
+  }
+
+  async function extract(targetFile: File | null = file, isNewScan = false) {
     if (!targetFile || busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setMessage("");
+    let extracted = "";
+    let qrReference = "";
     try {
       if (targetFile.type === "application/pdf") {
         const pdfjs = await import("pdfjs-dist");
@@ -250,36 +340,27 @@ export default function DocumentScanner({
         const task = pdfjs.getDocument({ data: await targetFile.arrayBuffer() });
         const doc = await task.promise;
         try {
-          let result = "";
           for (let n = 1; n <= Math.min(doc.numPages, 10); n++) {
-            const page = await doc.getPage(n),
-              content = await page.getTextContent();
-            result +=
-              content.items.map((i) => ("str" in i ? i.str : "")).join(" ") +
-              "\n";
+            const page = await doc.getPage(n);
+            const content = await page.getTextContent();
+            extracted +=
+              content.items.map((i) => ("str" in i ? i.str : "")).join(" ") + "\n";
           }
-          const extracted = result.slice(0, 12000);
-          setText(extracted);
-          if (extracted.trim()) {
-            const foundReference = extractBookingReference(extracted) ?? reference;
-            const foundName = extractDocumentName(extracted);
-            const searchName = foundName ?? query;
-            if (foundReference) setReference(foundReference);
-            if (foundName) setQuery(foundName);
-            try {
-              const matches = await findMatches(extracted, foundReference, searchName);
-              setMessage(
-                matches.resolved || matches.candidates.length
-                  ? "PDF text extracted. Possible matches found; verify the document before attaching."
-                  : "PDF text extracted, but no matching record was found. Check the text or search by name.",
-              );
-            } catch (error) {
-              setMessage(error instanceof Error ? error.message : "Could not search records.");
+          // Scanned PDF with no text layer: render the pages and OCR them.
+          if (!extracted.trim()) {
+            for (let n = 1; n <= Math.min(doc.numPages, 3); n++) {
+              const page = await doc.getPage(n);
+              const viewport = page.getViewport({ scale: 2 });
+              const canvas = document.createElement("canvas");
+              canvas.width = viewport.width;
+              canvas.height = viewport.height;
+              await page.render({
+                canvasContext: canvas.getContext("2d")!,
+                canvas,
+                viewport,
+              } as Parameters<typeof page.render>[0]).promise;
+              extracted += (await ocr(canvas)) + "\n";
             }
-          } else {
-            setMessage(
-              "This PDF has no readable text layer. Import a clear photo of the document for OCR, or search by name/reference.",
-            );
           }
         } finally {
           await task.destroy();
@@ -294,7 +375,6 @@ export default function DocumentScanner({
           }
         ).BarcodeDetector;
         const bitmap = await createImageBitmap(targetFile);
-        let qrReference = "";
         try {
           if (Constructor) {
             const codes = await new Constructor({ formats: ["qr_code"] }).detect(bitmap);
@@ -310,73 +390,61 @@ export default function DocumentScanner({
         } finally {
           bitmap.close();
         }
-        setMessage("Preparing photo OCR…");
-        const { createWorker } = await import("tesseract.js");
-        const worker = await createWorker("eng", 1, {
-          logger: ({ status, progress }) => {
-            if (!mounted.current) return;
-            const percent = Math.round(progress * 100);
-            setMessage(
-              status === "recognizing text"
-                ? `Reading document text… ${percent}%`
-                : `Preparing OCR… ${status}`,
-            );
-          },
-        });
-        let extracted = "";
-        try {
-          const result = await worker.recognize(targetFile, { rotateAuto: true });
-          extracted = result.data.text.trim().slice(0, 12000);
-        } finally {
-          await worker.terminate();
-        }
-        setText(extracted);
-        const foundReference =
-          qrReference || extractBookingReference(extracted) || reference;
-        const foundName = extractDocumentName(extracted);
-        const searchName = foundName ?? query;
-        if (foundReference) setReference(foundReference);
-        if (foundName) setQuery(foundName);
-        try {
-          const matches = await findMatches(extracted, foundReference, searchName);
-          setMessage(
-            matches.resolved || matches.candidates.length
-              ? "Photo read locally. Possible matching records are shown below; verify the document before attaching."
-              : extracted
-                ? "Photo read locally, but no matching record was found. Check the text or search by name."
-                : "No readable text found. Try a brighter, sharper photo with the full document in frame.",
-          );
-        } catch (error) {
-          setMessage(error instanceof Error ? error.message : "Could not search records.");
-        }
+        extracted = await ocr(targetFile);
       }
     } catch (error) {
       setMessage(
         error instanceof Error
           ? `Could not read the document: ${error.message}`
-          : "Could not read the document. Use manual search; uncertain scans remain unassigned.",
+          : "Could not read the document. Try a clearer photo or search by name.",
       );
-    } finally {
       busyRef.current = false;
       setBusy(false);
+      return;
     }
+
+    extracted = extracted.slice(0, 12000);
+    setText(extracted);
+    const foundReference =
+      qrReference || extractBookingReference(extracted) || (isNewScan ? "" : reference);
+    const foundName = extractDocumentName(extracted);
+    if (foundReference) setReference(foundReference);
+    if (foundName) setQuery(foundName);
+    setCandidates([]);
+    setResolved(null);
+    setMessage(
+      extracted
+        ? "Document text ready. Select Identify owner / record to find its match."
+        : "No readable text. Try a brighter, sharper photo with the whole document in frame.",
+    );
+    busyRef.current = false;
+    setBusy(false);
   }
+
+  // Saves the file once and returns its id (reused if already saved).
+  async function saveFile(): Promise<string> {
+    if (documentId) return documentId;
+    if (!file) throw Error("No file to save.");
+    const form = new FormData();
+    form.set("file", file);
+    form.set("kind", "scan");
+    form.set("extractedText", text.slice(0, 12000));
+    const r = await fetch("/api/documents", { method: "POST", body: form });
+    const data = await r.json();
+    if (!r.ok) throw Error(data.error);
+    setDocumentId(data.id);
+    return data.id as string;
+  }
+
   async function save() {
     if (!file || busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setMessage("");
     try {
-      const form = new FormData();
-      form.set("file", file);
-      form.set("kind", "scan");
-      form.set("extractedText", text.slice(0, 12000));
-      const r = await fetch("/api/documents", { method: "POST", body: form }),
-        data = await r.json();
-      if (!r.ok) throw Error(data.error);
-      setDocumentId(data.id);
+      await saveFile();
       setMessage(
-        "Saved privately and unassigned. Confirm a target below only after reviewing the source.",
+        "Saved privately and unassigned. You can attach it to a match below.",
       );
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Upload failed.");
@@ -385,14 +453,15 @@ export default function DocumentScanner({
       setBusy(false);
     }
   }
+
   async function search() {
     setBusy(true);
     try {
       const data = await findMatches();
       setMessage(
         data.candidates.length || data.resolved
-          ? "Possible matches only. Verify the source before attachment."
-          : "No matches. The scan remains unassigned.",
+          ? "One confident match found. Verify the source before attachment."
+          : "No confident unique match. The scan remains unassigned; use a reference, matching date, and service to distinguish repeated names.",
       );
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Search failed.");
@@ -400,30 +469,44 @@ export default function DocumentScanner({
       setBusy(false);
     }
   }
-  async function attach(target: { bookingId?: number; requestId?: string }) {
-    if (!documentId || note.trim().length < 10) {
-      setMessage("Save the scan and enter verification notes first.");
+
+  async function attach(
+    target: { bookingId?: number; requestId?: string; userId?: number },
+    c?: Candidate,
+  ) {
+    if (!file && !documentId) {
+      setMessage("Scan or import a document first.");
       return;
     }
+    const owner = c?.owner
+      ? `${c.owner.name ?? c.owner.email ?? "linked account"}${c.owner.email && c.owner.name ? ` · ${c.owner.email}` : ""}`
+      : "no linked account";
+    const reason = `Scan matched by ${c?.evidence ?? "system reference"}${
+      c?.score ? ` (${c.score}%)` : ""
+    }; confirmed by staff.`;
     if (
       !window.confirm(
-        "Attach this scan to the selected record after your review?",
+        `Attach this scan to ${c?.reference ?? "the selected record"}${
+          c ? ` (${c.requesterName})` : ""
+        }? Account owner: ${owner}.`,
       )
     )
       return;
     setBusy(true);
     try {
+      const id = await saveFile(); // auto-save, no separate step needed
       const r = await fetch("/api/admin/scans", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ documentId, ...target, note }),
+          body: JSON.stringify({ documentId: id, ...target, note: reason }),
         }),
         data = await r.json();
       if (!r.ok) throw Error(data.error);
+      setFile(null);
+      resetScanMatch();
       setMessage(
-        "Attachment recorded with your admin identity and timestamp. Payment and certificate approvals are unchanged.",
+        `Attached to ${c?.reference ?? "the record"} (owner: ${owner}). Recorded with your admin identity and timestamp. Payment and certificate approvals are unchanged.`,
       );
-      setDocumentId("");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Attachment failed.");
     } finally {
@@ -434,7 +517,8 @@ export default function DocumentScanner({
     <div className="portal-form">
       <p>
         Photo text is read locally in your browser. The image is uploaded only
-        when you save the scan; OCR matches are suggestions and require review.
+        when you save or attach the scan; matches are suggestions and require
+        your review.
       </p>
       <div className="scan-actions">
         <button
@@ -481,11 +565,9 @@ export default function DocumentScanner({
             stop();
             const selected = e.target.files?.[0] ?? null;
             setFile(selected);
-            setDocumentId("");
-            setText("");
-            setCandidates([]);
-            setResolved(null);
-            if (selected?.type.startsWith("image/")) void extract(selected);
+            resetScanMatch();
+            // Images and PDFs are both read automatically (PDFs fall back to OCR).
+            if (selected) void extract(selected, true);
           }}
         />
       </label>
@@ -516,10 +598,7 @@ export default function DocumentScanner({
               disabled={busy}
               onClick={() => {
                 setFile(null);
-                setDocumentId("");
-                setText("");
-                setCandidates([]);
-                setResolved(null);
+                resetScanMatch();
                 stop();
               }}
             >
@@ -534,15 +613,12 @@ export default function DocumentScanner({
                 Create PDF
               </button>
             )}
-            {file.type === "application/pdf" && (
-              <FileActions blob={file} filename={file.name} />
-            )}
             <button
               className="btn btn-secondary"
               onClick={() => void extract()}
               disabled={busy}
             >
-              {file.type === "application/pdf" ? "Read PDF text" : "Read photo (OCR + QR)"}
+              {file.type === "application/pdf" ? "Read PDF (text / OCR)" : "Read photo (OCR + QR)"}
             </button>
             <button
               className="btn btn-primary"
@@ -564,7 +640,7 @@ export default function DocumentScanner({
         />
       </label>
       <label>
-        Opaque system reference
+        Opaque system reference (optional)
         <input
           value={reference}
           onChange={(e) => setReference(e.target.value)}
@@ -572,25 +648,17 @@ export default function DocumentScanner({
         />
       </label>
       <label>
-        Search a booking or certificate reference/name
+        Search by name or reference (optional)
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           maxLength={100}
         />
       </label>
+      <p>Finding matches uses the extracted text and does not save or upload the scan. Save is optional; attaching a match saves it automatically.</p>
       <button className="btn btn-secondary" disabled={busy} onClick={search}>
-        Find possible matches
+        Identify owner / record
       </button>
-      <label>
-        Why this record matches (required before attachment)
-        <textarea
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          minLength={10}
-          maxLength={1000}
-        />
-      </label>
       {resolved && (
         <article className="portal-card">
           <h3>System reference resolved by server</h3>
@@ -598,6 +666,26 @@ export default function DocumentScanner({
             {resolved.kind} · {resolved.reference ?? resolved.id} ·{" "}
             {resolved.requesterName}
           </p>
+          <p>
+            Account owner: {" "}
+            {resolved.owner
+              ? `${resolved.owner.fullname ?? resolved.owner.name ?? "(no name)"}${resolved.owner.email ? ` · ${resolved.owner.email}` : ""}`
+              : "No linked user account (guest / walk-in)"}
+          </p>
+          {(resolved.kind === "booking" || resolved.kind === "request") && (
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                const destination = destinationForMatch({
+                  candidates: [],
+                  resolved,
+                });
+                if (destination) router.push(destination);
+              }}
+            >
+              Open {resolved.kind === "booking" ? "booking" : "request"} record
+            </button>
+          )}
           {(resolved.kind === "booking" || resolved.bookingId) && (
             <button
               className="btn btn-primary"
@@ -622,27 +710,54 @@ export default function DocumentScanner({
           )}
         </article>
       )}
-      {candidates.map((c) => (
+      {candidates.map((c, i) => (
         <article className="portal-card" key={`${c.kind}-${c.id}`}>
           <h3>
-            {c.reference} · {c.requesterName}
+            {i === 0 && "Best match · "}
+            {c.kind === "user"
+              ? `Account match · ${c.requesterName}`
+              : `${c.reference} · ${c.matchedName || c.requesterName}`}
+            {c.score != null && ` · ${c.score}%`}
           </h3>
           <p>
-            {new Date(c.bookingDate).toLocaleDateString("en-PH", { timeZone: "Asia/Manila" })} · {c.service}
+            Account owner:{" "}
+            {c.owner
+              ? `${c.owner.fullname ?? c.owner.name ?? "(no name)"}${c.owner.email ? ` · ${c.owner.email}` : ""}`
+              : "No linked user account (guest / walk-in)"}
           </p>
+          <p>
+            {c.kind !== "user" &&
+              `${new Date(c.bookingDate).toLocaleDateString("en-PH", { timeZone: "Asia/Manila" })} · ${c.service}`}
+          </p>
+          {c.matchedName && <p>Matched document name: {c.matchedName}</p>}
           <p>{c.evidence}</p>
+          {destinationForCandidate(c) && (
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                const destination = destinationForCandidate(c);
+                if (destination) router.push(destination);
+              }}
+            >
+              Open matching record
+            </button>
+          )}
           <button
             disabled={busy}
             className="btn btn-primary"
             onClick={() =>
               c.kind === "booking"
                 ? attach({ bookingId: Number(c.id) })
-                : attach({ requestId: String(c.id) })
+                : c.kind === "request"
+                  ? attach({ requestId: String(c.id) })
+                  : attach({ userId: Number(c.id) })
             }
           >
             {c.kind === "booking"
               ? "Confirm attachment to this booking"
-              : "Confirm attachment to this certificate request"}
+              : c.kind === "request"
+                ? "Confirm attachment to this certificate request"
+                : "Confirm attachment to this user account"}
           </button>
         </article>
       ))}
